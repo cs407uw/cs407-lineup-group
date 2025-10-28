@@ -30,13 +30,13 @@ val HardcodedRestaurants = listOf(
         description = "Wisconsin-themed, retro-style tavern offering beers, brats & cheese curds (all sourced in-state).",
         waitTimeMinutes = 35,
         type = "American",
-        latLng = LatLng(43.07541, -89.38664) // adjust if needed
+        latLng = LatLng(43.07650, -89.38377)
     ),
     Restaurant(
         name = "Great Dane Pub",
         description = "Craft brews & pub eats served in a lively venue with beer garden & pool tables.",
         waitTimeMinutes = 10,
         type = "Pub/Bar",
-        latLng = LatLng(43.07212, -89.38385)
+        latLng = LatLng(43.07459, -89.38026)
     )
 )
