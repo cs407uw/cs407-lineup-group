@@ -1,5 +1,6 @@
 package com.cs407.lineup.screens
 
+import android.R.attr.text
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +19,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation.weight
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cs407.lineup.R
@@ -49,6 +53,8 @@ val HardcodedRestaurants = listOf(
 // some custom imported fonts
 val roca = FontFamily(Font(R.font.roca2))
 val ubuntu = FontFamily(Font(R.font.ubuntu))
+val monaspace = FontFamily(Font(R.font.monaspace_neon))
+
 
 // using modalBottomSheet for the little menu that you can swipe up and down. It's
 // an experimential feature but I couldn't find anything else built-in that had this functionality.
@@ -170,16 +176,24 @@ fun RestaurantListSheet(restaurants: List<Restaurant>, onClose: () -> Unit) {
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     // show the selectedCategory as the menu header
                     Text(
+                        modifier = Modifier.fillMaxWidth(),
                         text = selectedCategory,
+                        textAlign = TextAlign.Center,
                         color = Color.White,
                         fontSize = 22.sp,
-                        fontFamily = roca
+                        fontFamily = monaspace,
+                        fontWeight = FontWeight.Bold
                     )
+                }
+
+                Box (
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
                     Icon(
                         imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = "Dropdown arrow",
@@ -208,7 +222,8 @@ fun RestaurantListSheet(restaurants: List<Restaurant>, onClose: () -> Unit) {
                                     text = category,
                                     color = Color.White,
                                     fontSize = 20.sp,
-                                    fontFamily = roca
+                                    fontFamily = monaspace,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         },
@@ -261,7 +276,7 @@ fun RestaurantListItem(restaurant: Restaurant, index: Int) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(restaurant.name, fontSize = 25.sp, color = Color.Black, fontFamily=roca)
+            Text(restaurant.name, fontSize = 25.sp, color = Color.Black, fontFamily=monaspace, fontWeight = FontWeight.Bold)
             Text(restaurant.type, fontSize = 20.sp, color = Color.DarkGray, fontFamily = ubuntu)
         }
         Box(
@@ -276,7 +291,8 @@ fun RestaurantListItem(restaurant: Restaurant, index: Int) {
                 Text(
                     text = "${restaurant.waitTimeMinutes}",
                     fontSize = 25.sp,
-                    fontFamily = roca,
+                    fontFamily = monaspace,
+                    fontWeight = FontWeight.Bold,
                     color = Color(0xFF1B5E20)
                 )
                 Text(
