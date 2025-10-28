@@ -13,15 +13,6 @@ import com.cs407.lineup.R
 
 // Set of Material typography styles to start with
 
-//val MonaspaceFamily = FontFamily(
-//    Font(
-//        resId = R.font.monaspace_neon,
-//        variationSettings = FontVariation.Settings(
-//            FontVariation.weight(90, 800)
-//        )
-//    )
-//)
-
 val Typography = Typography(
     bodyLarge = TextStyle(
         fontFamily = FontFamily.Default,
@@ -29,15 +20,7 @@ val Typography = Typography(
         fontSize = 16.sp,
         lineHeight = 24.sp,
         letterSpacing = 0.5.sp
-    ),
-
-//    titleMedium = TextStyle(
-//        fontFamily = MonaspaceFamily,
-//        fontWeight = FontWeight.Normal,
-//        fontSize = 20.sp,
-//        lineHeight = 28.sp,
-//        letterSpacing = 0.sp
-//    )
+    )
     /* Other default text styles to override
     titleLarge = TextStyle(
         fontFamily = FontFamily.Default,
