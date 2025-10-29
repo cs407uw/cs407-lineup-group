@@ -8,8 +8,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.*
@@ -48,13 +52,16 @@ fun MapScreen(modifier: Modifier = Modifier) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     var showSheet by remember { mutableStateOf(true) }
 
-    var selected by remember { mutableStateOf<Restaurant?>(null) }
-    val initial = selected?.latLng ?: LatLng(43.0731, -89.4012) // default Madison, WI
+    var showProfileCard by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }
+    var home by remember { mutableStateOf("") }
+    var work by remember { mutableStateOf("") }
 
+    var selected by remember { mutableStateOf<Restaurant?>(null) }
+    val initial = selected?.latLng ?: LatLng(43.0731, -89.4012) // default Madison
     val cameraPositionState: CameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(initial, 13f)
     }
-
 
     LaunchedEffect(selected) {
         selected?.let {
@@ -66,7 +73,6 @@ fun MapScreen(modifier: Modifier = Modifier) {
     }
 
     Box(modifier = modifier.fillMaxSize().background(Color.White)) {
-        // Google Map composable
         GoogleMap(
             modifier = Modifier
                 .fillMaxSize()
@@ -80,6 +86,114 @@ fun MapScreen(modifier: Modifier = Modifier) {
             )
         }
 
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 40.dp, end = 16.dp)
+                .align(Alignment.TopEnd),
+            horizontalArrangement = Arrangement.End
+        ) {
+            Button(
+                onClick = { showProfileCard = !showProfileCard },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Profile",
+                    modifier = Modifier.size(20.dp),
+                    tint = Color.White
+                )
+            }
+        }
+
+        if (showProfileCard) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .clickable { showProfileCard = false },
+                contentAlignment = Alignment.Center
+            ) {
+                ElevatedCard(
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .fillMaxWidth(0.9f)
+                        .clickable(enabled = false) {}
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Profile",
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text("Profile Preferences", fontFamily = monaspace, fontWeight = FontWeight.Bold)
+
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = { Text("Name") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            leadingIcon = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF1B5E20),
+                                unfocusedBorderColor = Color.LightGray,
+                                focusedLabelColor = Color(0xFF1B5E20),
+                                cursorColor = Color(0xFF1B5E20)
+                            )
+                        )
+
+                        OutlinedTextField(
+                            value = home,
+                            onValueChange = { home = it },
+                            label = { Text("Home") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            leadingIcon = { Icon(Icons.Default.Home, contentDescription = null) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF1B5E20),
+                                unfocusedBorderColor = Color.LightGray,
+                                focusedLabelColor = Color(0xFF1B5E20),
+                                cursorColor = Color(0xFF1B5E20)
+                            )
+                        )
+
+                        OutlinedTextField(
+                            value = work,
+                            onValueChange = { work = it },
+                            label = { Text("Work") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            leadingIcon = { Icon(Icons.Default.Place, contentDescription = null) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF1B5E20),
+                                unfocusedBorderColor = Color.LightGray,
+                                focusedLabelColor = Color(0xFF1B5E20),
+                                cursorColor = Color(0xFF1B5E20)
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { showProfileCard = false },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20))
+                        ) {
+                            Text("Close", color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
 
         if (showSheet) {
             ModalBottomSheet(
@@ -138,6 +252,7 @@ fun MapScreen(modifier: Modifier = Modifier) {
         }
     }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
