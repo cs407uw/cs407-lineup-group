@@ -57,8 +57,9 @@ android {
 
 dependencies {
     implementation("com.google.android.gms:play-services-maps:18.2.0")
+    implementation("io.coil-kt:coil-compose:2.6.0")
     implementation("com.google.maps.android:maps-compose:4.4.1")
-
+    implementation("androidx.navigation:navigation-compose:2.8.0")
     implementation(libs.androidx.core.ktx)
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.animation:animation")

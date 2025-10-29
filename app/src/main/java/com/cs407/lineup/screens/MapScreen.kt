@@ -16,7 +16,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,9 +46,14 @@ val roca = FontFamily(Font(R.font.roca2))
 val ubuntu = FontFamily(Font(R.font.ubuntu))
 val monaspace = FontFamily(Font(R.font.monaspace_neon))
 
+
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MapScreen(modifier: Modifier = Modifier) {
+fun MapScreen(
+    modifier: Modifier = Modifier,
+    onRestaurantClick: (Restaurant) -> Unit
+) {
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     var showSheet by remember { mutableStateOf(true) }
@@ -223,7 +227,10 @@ fun MapScreen(modifier: Modifier = Modifier) {
             ) {
                 RestaurantListSheet(
                     restaurants = HardcodedRestaurants,
-                    onItemClick = { r -> selected = r },
+                    onItemClick = { r ->
+                        selected = r
+                        onRestaurantClick(r)
+                    },
                     onCategoryChangeFirst = { first -> first?.let { selected = it } },
                     onClose = {
                         scope.launch { sheetState.hide() }.invokeOnCompletion {
