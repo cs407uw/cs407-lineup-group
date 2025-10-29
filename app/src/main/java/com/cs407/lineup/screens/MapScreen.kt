@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -133,12 +134,12 @@ fun MapScreen(modifier: Modifier = Modifier) {
                             modifier = Modifier.size(64.dp)
                         )
                         Spacer(modifier = Modifier.height(10.dp))
-                        Text("Profile Preferences", fontFamily = monaspace, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.profile_preferences), fontFamily = monaspace, fontWeight = FontWeight.Bold)
 
                         OutlinedTextField(
                             value = name,
                             onValueChange = { name = it },
-                            label = { Text("Name") },
+                            label = { Text(stringResource(R.string.name)) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 8.dp),
@@ -155,7 +156,7 @@ fun MapScreen(modifier: Modifier = Modifier) {
                         OutlinedTextField(
                             value = home,
                             onValueChange = { home = it },
-                            label = { Text("Home") },
+                            label = { Text(stringResource(R.string.home)) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 8.dp),
@@ -172,7 +173,7 @@ fun MapScreen(modifier: Modifier = Modifier) {
                         OutlinedTextField(
                             value = work,
                             onValueChange = { work = it },
-                            label = { Text("Work") },
+                            label = { Text(stringResource(R.string.work)) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 8.dp),
@@ -191,7 +192,7 @@ fun MapScreen(modifier: Modifier = Modifier) {
                             onClick = { showProfileCard = false },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20))
                         ) {
-                            Text("Close", color = Color.White)
+                            Text(stringResource(R.string.close_button), color = Color.White)
                         }
                     }
                 }
@@ -265,13 +266,20 @@ fun RestaurantListSheet(
     onCategoryChangeFirst: (Restaurant?) -> Unit,
     onClose: () -> Unit
 ) {
-    var selectedCategory by remember { mutableStateOf("All Establishments") }
-    val categories = listOf("All Establishments", "American", "Mexican", "Italian", "Pub/Bar")
+    val allLabel = stringResource(R.string.category_all)
+    var selectedCategory by remember { mutableStateOf(allLabel) }
+    val categories = listOf(
+        stringResource(R.string.category_all),
+        stringResource(R.string.category_american),
+        stringResource(R.string.category_mexican),
+        stringResource(R.string.category_italian),
+        stringResource(R.string.category_pub_bar)
+    )
     var expanded by remember { mutableStateOf(false) }
 
     val filtered by remember(selectedCategory, restaurants) {
         derivedStateOf {
-            if (selectedCategory == "All Establishments") restaurants
+            if (selectedCategory == allLabel) restaurants
             else restaurants.filter { it.type == selectedCategory }
         }
     }
