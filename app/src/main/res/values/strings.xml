@@ -11,6 +11,7 @@
     <string name="category_mexican">Mexican</string>
     <string name="category_italian">Italian</string>
     <string name="category_pub_bar">Pub/Bar</string>
+    <string name="category_cafe">Cafe</string>
 
     <string name="profile_icon_desc">Profile</string>
     <string name="dropdown_arrow_desc">Dropdown arrow</string>

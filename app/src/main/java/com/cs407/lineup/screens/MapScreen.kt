@@ -273,7 +273,8 @@ fun RestaurantListSheet(
         stringResource(R.string.category_american),
         stringResource(R.string.category_mexican),
         stringResource(R.string.category_italian),
-        stringResource(R.string.category_pub_bar)
+        stringResource(R.string.category_pub_bar),
+        stringResource(R.string.category_cafe)
     )
     var expanded by remember { mutableStateOf(false) }
 
