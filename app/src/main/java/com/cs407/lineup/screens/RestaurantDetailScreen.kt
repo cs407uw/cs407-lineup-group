@@ -1,5 +1,7 @@
 package com.cs407.lineup.screens
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -25,6 +28,7 @@ import com.cs407.lineup.data.Restaurant
 import coil.compose.AsyncImage
 @Composable
 fun RestaurantDetailScreen(restaurant: Restaurant, onBack: () -> Unit) {
+    val context = LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -70,7 +74,13 @@ fun RestaurantDetailScreen(restaurant: Restaurant, onBack: () -> Unit) {
         Spacer(modifier = Modifier.height(32.dp))
 
         Button(
-            onClick = { /* TODO: navigation*/ },
+            //https://developer.android.com/guide/components/google-maps-intents
+            onClick = {
+                val geoUri = Uri.parse("geo:${restaurant.latLng.latitude},${restaurant.latLng.longitude}?q=${restaurant.latLng.latitude},${restaurant.latLng.longitude}(${Uri.encode(restaurant.name)})")
+                val mapIntent = Intent(Intent.ACTION_VIEW, geoUri)
+                mapIntent.setPackage("com.google.android.apps.maps")
+                context.startActivity(mapIntent)
+            },
             colors = ButtonDefaults.buttonColors(containerColor = Color.White),
             modifier = Modifier.align(Alignment.CenterHorizontally)
         ) {
