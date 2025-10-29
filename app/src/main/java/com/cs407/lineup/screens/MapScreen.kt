@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
@@ -86,25 +87,27 @@ fun MapScreen(modifier: Modifier = Modifier) {
             )
         }
 
-        Row(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 40.dp, end = 16.dp)
-                .align(Alignment.TopEnd),
-            horizontalArrangement = Arrangement.End
+                .padding(top = 40.dp, end = 20.dp)
+                .align(Alignment.TopEnd)
         ) {
-            Button(
+            IconButton(
                 onClick = { showProfileCard = !showProfileCard },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20))
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(Color.White, shape = CircleShape)
+                    .border(2.dp, Color.Black, CircleShape)
             ) {
                 Icon(
                     imageVector = Icons.Default.Person,
                     contentDescription = "Profile",
-                    modifier = Modifier.size(20.dp),
-                    tint = Color.White
+                    tint = Color.Black,
+                    modifier = Modifier.size(28.dp)
                 )
             }
         }
+
 
         if (showProfileCard) {
             Box(
