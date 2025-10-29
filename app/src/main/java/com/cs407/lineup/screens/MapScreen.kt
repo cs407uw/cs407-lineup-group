@@ -1,22 +1,15 @@
 package com.cs407.lineup.screens
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.*
@@ -24,10 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cs407.lineup.R
@@ -87,136 +78,6 @@ fun MapScreen(modifier: Modifier = Modifier) {
         }
 
 
-    var showProfileCard by remember { mutableStateOf(false) }
-
-    //Variables for profile card
-    var name by remember { mutableStateOf("") }
-    var home by remember { mutableStateOf("") }
-    var work by remember { mutableStateOf("") }
-
-    Box(modifier = modifier
-        .fillMaxSize()
-        .background(Color.White))
-    {
-        Row( //Profile Button
-            modifier = Modifier
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
-        ) {
-            Button(onClick = {showProfileCard = !showProfileCard}) {
-                Icon(
-                    imageVector = Icons.Default.Person,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-
-        // ProfileCard Content
-        if (showProfileCard) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.6f))
-                    .clickable { showProfileCard = false },
-                contentAlignment = Alignment.Center
-            ) {
-                ElevatedCard(
-                    modifier = Modifier
-                        .padding(24.dp)
-                        .fillMaxWidth(0.9f)
-                        .clickable(enabled = false) {},
-
-                ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Profile",
-                            modifier = Modifier.size(64.dp)
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text("Profile Preferences")
-
-                        OutlinedTextField( //Name TextField
-                            value = name,
-                            onValueChange = { name = it },
-                            label = { Text("Name") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            shape = RoundedCornerShape(12.dp), // Rounded corners
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.AccountCircle,
-                                    contentDescription = null
-                                )
-                            },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF1B5E20), // Your app's green
-                                unfocusedBorderColor = Color.LightGray,
-                                focusedLabelColor = Color(0xFF1B5E20),
-                                cursorColor = Color(0xFF1B5E20)
-                            )
-                        )
-                        OutlinedTextField( //Home TextField
-                            value = home,
-                            onValueChange = { home = it },
-                            label = { Text("Home") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            shape = RoundedCornerShape(12.dp), // Rounded corners
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Home,
-                                    contentDescription = null
-                                )
-                            },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF1B5E20), // Your app's green
-                                unfocusedBorderColor = Color.LightGray,
-                                focusedLabelColor = Color(0xFF1B5E20),
-                                cursorColor = Color(0xFF1B5E20)
-                            )
-                        )
-                        OutlinedTextField( //Work TextField
-                            value = work,
-                            onValueChange = { work = it },
-                            label = { Text("Work") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            shape = RoundedCornerShape(12.dp), // Rounded corners
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Place,
-                                    contentDescription = null
-                                )
-                            },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF1B5E20), // Your app's green
-                                unfocusedBorderColor = Color.LightGray,
-                                focusedLabelColor = Color(0xFF1B5E20),
-                                cursorColor = Color(0xFF1B5E20)
-                            )
-                        )
-                        Button(
-                            onClick = { showProfileCard = false },
-//                            modifier = Modifier.fillMaxWidth(),
-
-                            ) {
-                            Text("Close")
-                        }
-                    }
-                }
-            }
-
-        }
-
-//        MapPlaceholder(Modifier.fillMaxSize())
         if (showSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showSheet = false },
@@ -396,7 +257,6 @@ fun RestaurantListItem(restaurant: Restaurant, index: Int, onClick: () -> Unit) 
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(restaurant.name, fontSize = 25.sp, color = Color.Black, fontFamily = roca)
-            Text(restaurant.name, fontSize = 25.sp, color = Color.Black, fontFamily=roca)
             Text(restaurant.type, fontSize = 20.sp, color = Color.DarkGray, fontFamily = ubuntu)
         }
         Box(
