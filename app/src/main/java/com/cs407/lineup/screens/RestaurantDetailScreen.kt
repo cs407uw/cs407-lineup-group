@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
@@ -33,7 +34,7 @@ fun RestaurantDetailScreen(restaurant: Restaurant, onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(restaurant.color)
-            .padding(25.dp),
+            .padding(20.dp),
         verticalArrangement = Arrangement.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -41,9 +42,10 @@ fun RestaurantDetailScreen(restaurant: Restaurant, onBack: () -> Unit) {
                 text = restaurant.name,
                 fontFamily = monaspace,
                 fontSize = 28.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
             )
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.width(16.dp))
             Text(
                 text = "${restaurant.waitTimeMinutes}\nMIN",
                 fontFamily = monaspace,
