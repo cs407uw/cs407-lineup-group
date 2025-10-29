@@ -19,6 +19,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.cs407.lineup.R
@@ -37,6 +39,7 @@ import kotlinx.coroutines.launch
 
 val roca = FontFamily(Font(R.font.roca2))
 val ubuntu = FontFamily(Font(R.font.ubuntu))
+val monaspace = FontFamily(Font(R.font.monaspace_neon))
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -178,15 +181,23 @@ fun RestaurantListSheet(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
+                        modifier = Modifier.fillMaxWidth(),
                         text = selectedCategory,
                         color = Color.White,
+                        textAlign = TextAlign.Center,
                         fontSize = 22.sp,
-                        fontFamily = roca
+                        fontFamily = monaspace,
+                        fontWeight = FontWeight.Bold
                     )
+                }
+
+                Box (
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
                     Icon(
                         imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                         contentDescription = "Dropdown arrow",
@@ -213,7 +224,8 @@ fun RestaurantListSheet(
                                     text = category,
                                     color = Color.White,
                                     fontSize = 20.sp,
-                                    fontFamily = roca
+                                    fontFamily = monaspace,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         },
@@ -256,7 +268,7 @@ fun RestaurantListItem(restaurant: Restaurant, index: Int, onClick: () -> Unit) 
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(restaurant.name, fontSize = 25.sp, color = Color.Black, fontFamily = roca)
+            Text(restaurant.name, fontSize = 25.sp, color = Color.Black, fontFamily = monaspace, fontWeight = FontWeight.Bold)
             Text(restaurant.type, fontSize = 20.sp, color = Color.DarkGray, fontFamily = ubuntu)
         }
         Box(
@@ -271,7 +283,8 @@ fun RestaurantListItem(restaurant: Restaurant, index: Int, onClick: () -> Unit) 
                 Text(
                     text = "${restaurant.waitTimeMinutes}",
                     fontSize = 25.sp,
-                    fontFamily = roca,
+                    fontFamily = monaspace,
+                    fontWeight = FontWeight.Bold,
                     color = Color(0xFF1B5E20)
                 )
                 Text(
