@@ -6,10 +6,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.*
@@ -17,12 +22,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.cs407.lineup.R
 import com.cs407.lineup.data.HardcodedRestaurants
 import com.cs407.lineup.data.Restaurant
@@ -41,20 +50,27 @@ val roca = FontFamily(Font(R.font.roca2))
 val ubuntu = FontFamily(Font(R.font.ubuntu))
 val monaspace = FontFamily(Font(R.font.monaspace_neon))
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MapScreen(modifier: Modifier = Modifier) {
+fun MapScreen(
+    modifier: Modifier = Modifier,
+    onRestaurantClick: (Restaurant) -> Unit
+) {
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     var showSheet by remember { mutableStateOf(true) }
 
-    var selected by remember { mutableStateOf<Restaurant?>(null) }
-    val initial = selected?.latLng ?: LatLng(43.0731, -89.4012) // default Madison, WI
+    var showProfileCard by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }
+    var home by remember { mutableStateOf("") }
+    var work by remember { mutableStateOf("") }
 
+    var selected by remember { mutableStateOf<Restaurant?>(null) }
+    val initial = selected?.latLng ?: LatLng(43.0731, -89.4012) // default Madison
     val cameraPositionState: CameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(initial, 13f)
     }
-
 
     LaunchedEffect(selected) {
         selected?.let {
@@ -66,7 +82,6 @@ fun MapScreen(modifier: Modifier = Modifier) {
     }
 
     Box(modifier = modifier.fillMaxSize().background(Color.White)) {
-        // Google Map composable
         GoogleMap(
             modifier = Modifier
                 .fillMaxSize()
@@ -80,6 +95,116 @@ fun MapScreen(modifier: Modifier = Modifier) {
             )
         }
 
+        Box(
+            modifier = Modifier
+                .padding(top = 40.dp, end = 20.dp)
+                .align(Alignment.TopEnd)
+        ) {
+            IconButton(
+                onClick = { showProfileCard = !showProfileCard },
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(Color.White, shape = CircleShape)
+                    .border(2.dp, Color.Black, CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Profile",
+                    tint = Color.Black,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
+
+
+        if (showProfileCard) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .clickable { showProfileCard = false },
+                contentAlignment = Alignment.Center
+            ) {
+                ElevatedCard(
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .fillMaxWidth(0.9f)
+                        .clickable(enabled = false) {}
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Profile",
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(stringResource(R.string.profile_preferences), fontFamily = monaspace, fontWeight = FontWeight.Bold)
+
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            label = { Text(stringResource(R.string.name)) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            leadingIcon = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF1B5E20),
+                                unfocusedBorderColor = Color.LightGray,
+                                focusedLabelColor = Color(0xFF1B5E20),
+                                cursorColor = Color(0xFF1B5E20)
+                            )
+                        )
+
+                        OutlinedTextField(
+                            value = home,
+                            onValueChange = { home = it },
+                            label = { Text(stringResource(R.string.home)) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            leadingIcon = { Icon(Icons.Default.Home, contentDescription = null) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF1B5E20),
+                                unfocusedBorderColor = Color.LightGray,
+                                focusedLabelColor = Color(0xFF1B5E20),
+                                cursorColor = Color(0xFF1B5E20)
+                            )
+                        )
+
+                        OutlinedTextField(
+                            value = work,
+                            onValueChange = { work = it },
+                            label = { Text(stringResource(R.string.work)) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            leadingIcon = { Icon(Icons.Default.Place, contentDescription = null) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF1B5E20),
+                                unfocusedBorderColor = Color.LightGray,
+                                focusedLabelColor = Color(0xFF1B5E20),
+                                cursorColor = Color(0xFF1B5E20)
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { showProfileCard = false },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20))
+                        ) {
+                            Text(stringResource(R.string.close_button), color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
 
         if (showSheet) {
             ModalBottomSheet(
@@ -105,7 +230,9 @@ fun MapScreen(modifier: Modifier = Modifier) {
             ) {
                 RestaurantListSheet(
                     restaurants = HardcodedRestaurants,
-                    onItemClick = { r -> selected = r },
+                    onItemClick = { r ->
+                        selected = r
+                        onRestaurantClick(r)},
                     onCategoryChangeFirst = { first -> first?.let { selected = it } },
                     onClose = {
                         scope.launch { sheetState.hide() }.invokeOnCompletion {
@@ -139,6 +266,7 @@ fun MapScreen(modifier: Modifier = Modifier) {
     }
 }
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RestaurantListSheet(
@@ -147,13 +275,21 @@ fun RestaurantListSheet(
     onCategoryChangeFirst: (Restaurant?) -> Unit,
     onClose: () -> Unit
 ) {
-    var selectedCategory by remember { mutableStateOf("All Establishments") }
-    val categories = listOf("All Establishments", "American", "Mexican", "Italian", "Pub/Bar")
+    val allLabel = stringResource(R.string.category_all)
+    var selectedCategory by remember { mutableStateOf(allLabel) }
+    val categories = listOf(
+        stringResource(R.string.category_all),
+        stringResource(R.string.category_american),
+        stringResource(R.string.category_mexican),
+        stringResource(R.string.category_italian),
+        stringResource(R.string.category_pub_bar),
+        stringResource(R.string.category_cafe)
+    )
     var expanded by remember { mutableStateOf(false) }
 
     val filtered by remember(selectedCategory, restaurants) {
         derivedStateOf {
-            if (selectedCategory == "All Establishments") restaurants
+            if (selectedCategory == allLabel) restaurants
             else restaurants.filter { it.type == selectedCategory }
         }
     }
