@@ -1,5 +1,6 @@
 package com.cs407.lineup.screens
 
+import android.R.attr.fontWeight
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -37,22 +38,26 @@ fun RestaurantDetailScreen(restaurant: Restaurant, onBack: () -> Unit) {
             .padding(20.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = restaurant.name,
-                fontFamily = monaspace,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = "${restaurant.waitTimeMinutes}\nMIN",
-                fontFamily = monaspace,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
-        }
+        Spacer(modifier = Modifier.height(30.dp))
+
+        Text(
+            text = restaurant.name,
+            fontFamily = monaspace,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Text(
+            text = "${restaurant.waitTimeMinutes} MIN",
+            fontFamily = monaspace,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
