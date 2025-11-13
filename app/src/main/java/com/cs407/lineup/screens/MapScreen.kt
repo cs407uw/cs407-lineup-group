@@ -49,7 +49,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
 import androidx.compose.ui.platform.LocalContext
+import androidx.glance.appwidget.updateAll
 import com.cs407.lineup.data.LocationViewModel
+import com.cs407.lineup.data.RestaurantPrefs
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 
 
@@ -281,7 +283,18 @@ fun MapScreen(
                     restaurants = HardcodedRestaurants,
                     onItemClick = { r ->
                         selected = r
-                        onRestaurantClick(r)},
+                        RestaurantPrefs.saveRestaurant(
+                            context,
+                            r.name,
+                            r.waitTimeMinutes,
+                            r.color.value.toInt()
+                        )
+                        kotlinx.coroutines.GlobalScope.launch {
+                            com.cs407.lineup.widget.LastRestaurantWidget().updateAll(context)
+                        }
+                        onRestaurantClick(r)
+                    },
+
                     onCategoryChangeFirst = { first -> first?.let { selected = it } },
                     onClose = {
                         scope.launch { sheetState.hide() }.invokeOnCompletion {

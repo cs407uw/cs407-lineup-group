@@ -36,6 +36,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cs407.lineup.data.Restaurant
 import coil.compose.AsyncImage
 import com.cs407.lineup.data.LocationViewModel
+import com.cs407.lineup.data.RestaurantPrefs
+import com.cs407.lineup.widget.WidgetUpdateReceiver
 
 @Composable
 fun RestaurantDetailScreen(
@@ -117,6 +119,7 @@ fun RestaurantDetailScreen(
                                 "&destination=${restaurant.latLng.latitude},${restaurant.latLng.longitude}" +
                                 "&travelmode=walking"
                     )
+
                     val intent = Intent(Intent.ACTION_VIEW, uri)
                     context.startActivity(intent)
                 } else {

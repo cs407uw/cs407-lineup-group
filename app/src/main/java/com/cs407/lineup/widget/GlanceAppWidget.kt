@@ -1,6 +1,8 @@
 package com.cs407.lineup.widget
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Color
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
@@ -16,7 +18,14 @@ import androidx.glance.layout.Row
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.padding
 import androidx.glance.text.Text
+import androidx.glance.text.TextStyle
 import com.cs407.lineup.MainActivity
+import com.cs407.lineup.data.RestaurantPrefs
+import androidx.glance.unit.ColorProvider
+import androidx.compose.ui.unit.sp
+import androidx.glance.background
+import com.cs407.lineup.R
+
 
 /* Import Glance Composables
  In the event there is a name clash with the Compose classes of the same name,
@@ -24,34 +33,29 @@ import com.cs407.lineup.MainActivity
  using the `as` keyword.
 
 */
-class MyAppWidget : GlanceAppWidget() {
+class LastRestaurantWidget : GlanceAppWidget() {
 
+    @SuppressLint("RestrictedApi")
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        // Load data needed to render the AppWidget.
-        // Use `withContext` to switch to another thread for long running
-        // operations.
+        val data = RestaurantPrefs.loadRestaurant(context)
 
         provideContent {
-            // create your AppWidget here
-            MyContent()
-        }
-    }
-
-    @Composable
-    private fun MyContent() {
-        Column(
-            modifier = GlanceModifier.fillMaxSize(),
-            verticalAlignment = Alignment.Top,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(text = "Where to?", modifier = GlanceModifier.padding(12.dp))
-            Row(horizontalAlignment = Alignment.CenterHorizontally) {
-                Button(
-                    text = "Home",
-                    onClick = actionStartActivity<MainActivity>()
+            Column(modifier = GlanceModifier.padding(12.dp).background(ColorProvider(R.color.white))) {
+                Text(
+                    text = data.name ?: "No restaurant selected",
+                    style = TextStyle(
+                        fontSize = 20.sp,
+                    )
                 )
+                Text(
+                    text = "Wait: ${data.wait ?: 0} min",
+                    style = TextStyle(
+                        fontSize = 16.sp,
+                    )
+                )
+
                 Button(
-                    text = "Work",
+                    text = "Open App",
                     onClick = actionStartActivity<MainActivity>()
                 )
             }
