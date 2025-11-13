@@ -56,6 +56,7 @@ android {
 }
 
 dependencies {
+    implementation("androidx.activity:activity-compose:1.9.0")
     implementation("com.google.android.gms:play-services-maps:18.2.0")
     implementation("io.coil-kt:coil-compose:2.6.0")
     implementation("com.google.maps.android:maps-compose:4.4.1")
@@ -73,6 +74,7 @@ dependencies {
     implementation(libs.androidx.compose.foundation)
 
     implementation(libs.androidx.compose.ui.text)
+    implementation(libs.play.services.location)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

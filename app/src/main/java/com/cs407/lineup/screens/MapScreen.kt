@@ -44,6 +44,13 @@ import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.launch
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import androidx.compose.ui.platform.LocalContext
+import com.cs407.lineup.data.LocationViewModel
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 
 
 val roca = FontFamily(Font(R.font.roca2))
@@ -57,6 +64,7 @@ fun MapScreen(
     modifier: Modifier = Modifier,
     onRestaurantClick: (Restaurant) -> Unit
 ) {
+
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     var showSheet by remember { mutableStateOf(true) }
@@ -71,6 +79,27 @@ fun MapScreen(
     val cameraPositionState: CameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(initial, 13f)
     }
+    val context = LocalContext.current
+
+    val locationViewModel: LocationViewModel = viewModel()
+    val userLocation by locationViewModel.location.collectAsState()
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        if (perms[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
+            locationViewModel.startLocationUpdates()
+        }
+    }
+
+    LaunchedEffect(userLocation) {
+        userLocation?.let {
+            cameraPositionState.animate(
+                CameraUpdateFactory.newLatLngZoom(it, 15f),
+                durationMs = 600
+            )
+        }
+    }
 
     LaunchedEffect(selected) {
         selected?.let {
@@ -81,6 +110,16 @@ fun MapScreen(
         }
     }
 
+    LaunchedEffect(true) {
+        permissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
+    }
+
+
     Box(modifier = modifier.fillMaxSize().background(Color.White)) {
         GoogleMap(
             modifier = Modifier
@@ -88,6 +127,16 @@ fun MapScreen(
                 .padding(bottom = if (showSheet) 220.dp else 0.dp),
             cameraPositionState = cameraPositionState
         ) {
+            userLocation?.let { loc ->
+                Marker(
+                    state = MarkerState(position = loc),
+                    title = "You",
+                    icon =
+                        BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
+                )
+            }
+
+
             val toShow = selected ?: HardcodedRestaurants.first()
             Marker(
                 state = MarkerState(position = toShow.latLng),
