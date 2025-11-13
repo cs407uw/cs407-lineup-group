@@ -1,6 +1,7 @@
 package com.cs407.lineup
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -27,7 +28,8 @@ fun LineupApp() {
             restaurant?.let {
                 RestaurantDetailScreen(
                     restaurant = it,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    locationViewModel = viewModel()
                 )
             }
         }
