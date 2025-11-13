@@ -56,6 +56,9 @@ android {
 }
 
 dependencies {
+    implementation("androidx.glance:glance-appwidget:1.1.1")
+    implementation("androidx.glance:glance-material3:1.1.1")
+    implementation("androidx.glance:glance-material:1.1.1")
     implementation("androidx.activity:activity-compose:1.9.0")
     implementation("com.google.android.gms:play-services-maps:18.2.0")
     implementation("io.coil-kt:coil-compose:2.6.0")

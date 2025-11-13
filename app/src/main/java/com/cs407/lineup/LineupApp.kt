@@ -25,6 +25,7 @@ fun LineupApp() {
         composable("restaurantDetail/{name}") { backStackEntry ->
             val name = backStackEntry.arguments?.getString("name")
             val restaurant = HardcodedRestaurants.find { it.name == name }
+
             restaurant?.let {
                 RestaurantDetailScreen(
                     restaurant = it,

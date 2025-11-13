@@ -49,8 +49,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
 import androidx.compose.ui.platform.LocalContext
+import androidx.glance.appwidget.updateAll
 import com.cs407.lineup.data.LocationViewModel
+import com.cs407.lineup.data.RestaurantPrefs
+import com.cs407.lineup.widget.LastRestaurantWidget
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import kotlinx.coroutines.GlobalScope
 
 
 val roca = FontFamily(Font(R.font.roca2))
@@ -107,6 +111,9 @@ fun MapScreen(
                 CameraUpdateFactory.newLatLngZoom(it.latLng, 15f),
                 durationMs = 600
             )
+            GlobalScope.launch {
+                LastRestaurantWidget().updateAll(context)
+            }
         }
     }
 
@@ -281,7 +288,18 @@ fun MapScreen(
                     restaurants = HardcodedRestaurants,
                     onItemClick = { r ->
                         selected = r
-                        onRestaurantClick(r)},
+                        RestaurantPrefs.saveRestaurant(
+                            context,
+                            r.name,
+                            r.waitTimeMinutes,
+                            r.color.value.toInt()
+                        )
+                        GlobalScope.launch {
+                            LastRestaurantWidget().updateAll(context)
+                        }
+                        onRestaurantClick(r)
+                    },
+
                     onCategoryChangeFirst = { first -> first?.let { selected = it } },
                     onClose = {
                         scope.launch { sheetState.hide() }.invokeOnCompletion {
