@@ -37,7 +37,6 @@ import com.cs407.lineup.data.Restaurant
 import coil.compose.AsyncImage
 import com.cs407.lineup.data.LocationViewModel
 import com.cs407.lineup.data.RestaurantPrefs
-import com.cs407.lineup.widget.WidgetUpdateReceiver
 
 @Composable
 fun RestaurantDetailScreen(

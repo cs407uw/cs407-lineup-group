@@ -52,7 +52,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.glance.appwidget.updateAll
 import com.cs407.lineup.data.LocationViewModel
 import com.cs407.lineup.data.RestaurantPrefs
+import com.cs407.lineup.widget.LastRestaurantWidget
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import kotlinx.coroutines.GlobalScope
 
 
 val roca = FontFamily(Font(R.font.roca2))
@@ -109,6 +111,9 @@ fun MapScreen(
                 CameraUpdateFactory.newLatLngZoom(it.latLng, 15f),
                 durationMs = 600
             )
+            GlobalScope.launch {
+                LastRestaurantWidget().updateAll(context)
+            }
         }
     }
 
@@ -289,8 +294,8 @@ fun MapScreen(
                             r.waitTimeMinutes,
                             r.color.value.toInt()
                         )
-                        kotlinx.coroutines.GlobalScope.launch {
-                            com.cs407.lineup.widget.LastRestaurantWidget().updateAll(context)
+                        GlobalScope.launch {
+                            LastRestaurantWidget().updateAll(context)
                         }
                         onRestaurantClick(r)
                     },
