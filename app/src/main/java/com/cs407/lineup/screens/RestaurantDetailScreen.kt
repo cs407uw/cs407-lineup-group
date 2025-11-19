@@ -1,6 +1,5 @@
 package com.cs407.lineup.screens
 
-import android.R.attr.fontWeight
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -30,7 +28,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -43,21 +40,22 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cs407.lineup.data.Restaurant
 import coil.compose.AsyncImage
 import com.cs407.lineup.data.LocationViewModel
-import com.cs407.lineup.data.RestaurantPrefs
 
 @Composable
 fun RestaurantDetailScreen(
-    restaurant: Restaurant,
-    onBack: () -> Unit,
-    locationViewModel: LocationViewModel = viewModel()
+    restaurant: Restaurant, onBack: () -> Unit, locationViewModel: LocationViewModel = viewModel()
 ) {
-    val userLocation by locationViewModel.location.collectAsState()
     val context = LocalContext.current
 
+    // location state for navigation
+    val userLocation by locationViewModel.location.collectAsState()
+
+    // request location updates right upon screen load
     LaunchedEffect(true) {
         locationViewModel.startLocationUpdates()
     }
 
+    // fallback image & descrip. in case the api doesn't properly return one for a restaurant
     val safeImage = restaurant.imageUrl.ifBlank {
         "https://via.placeholder.com/400x300?text=No+Image"
     }
@@ -66,7 +64,7 @@ fun RestaurantDetailScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(restaurant.color.copy(alpha = 0.25f))
+            .background(restaurant.color)
             .padding(16.dp)
     ) {
         Column(
@@ -77,7 +75,7 @@ fun RestaurantDetailScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-
+            // card to hold restaurant content
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
@@ -89,7 +87,7 @@ fun RestaurantDetailScreen(
                     modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-
+                    // restaurant name
                     Text(
                         text = restaurant.name,
                         fontFamily = monaspace,
@@ -102,6 +100,7 @@ fun RestaurantDetailScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    // wait time
                     Box(
                         modifier = Modifier
                             .background(Color(0xFFEEEDE9), RoundedCornerShape(10.dp))
@@ -118,11 +117,12 @@ fun RestaurantDetailScreen(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
+                    // restaurant metadata including rating, price, and open status (we can add a few more things i think)
                     RestaurantMetaInfo(restaurant)
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-
+                    // main restaurant image (use fallback if needed)
                     AsyncImage(
                         model = safeImage,
                         contentDescription = "Restaurant Image",
@@ -135,6 +135,7 @@ fun RestaurantDetailScreen(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
+                    // description w/ fallback
                     Text(
                         text = safeDescription,
                         fontFamily = ubuntu,
@@ -146,18 +147,21 @@ fun RestaurantDetailScreen(
 
                     Spacer(modifier = Modifier.height(30.dp))
 
+                    // external maps navigation button (to android maps)
                     Button(
                         onClick = {
                             if (userLocation != null) {
+                                // build the maps walking directions url (we can change this to drive, but since
+                                // we are catering to students, kept it as walking)
                                 val uri = Uri.parse(
-                                    "https://www.google.com/maps/dir/?api=1" +
-                                            "&origin=${userLocation!!.latitude},${userLocation!!.longitude}" +
-                                            "&destination=${restaurant.latLng.latitude},${restaurant.latLng.longitude}" +
-                                            "&travelmode=walking"
+                                    "https://www.google.com/maps/dir/?api=1" + "&origin=${userLocation!!.latitude},${userLocation!!.longitude}" + "&destination=${restaurant.latLng.latitude},${restaurant.latLng.longitude}" + "&travelmode=walking"
                                 )
+                                // launch the maps in android with a toast if the user's location is not available yet
                                 context.startActivity(Intent(Intent.ACTION_VIEW, uri))
                             } else {
-                                Toast.makeText(context, "Finding your location…", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context, "Finding your location…", Toast.LENGTH_SHORT
+                                ).show()
                             }
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20)),
@@ -171,6 +175,7 @@ fun RestaurantDetailScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // back button
                     TextButton(onClick = onBack) {
                         Text("Back", color = Color.Gray, fontSize = 16.sp)
                     }
@@ -180,12 +185,18 @@ fun RestaurantDetailScreen(
     }
 }
 
+/**
+ * function to build the single row of restaurant metadata
+ */
 @Composable
 fun RestaurantMetaInfo(restaurant: Restaurant) {
+    // metadata fields
     val rating = restaurant.rating
     val ratingCount = restaurant.ratingCount
     val priceLevel = restaurant.priceLevel
     val isOpen = restaurant.isOpenNow
+
+    // separator for visual aesthetics
     val separator = "  •  "
 
     Row(
@@ -205,6 +216,7 @@ fun RestaurantMetaInfo(restaurant: Restaurant) {
             )
         }
 
+        // restaurant reviews with counts
         ratingCount?.let {
             Text(
                 text = "  ($ratingCount reviews)",
@@ -218,6 +230,7 @@ fun RestaurantMetaInfo(restaurant: Restaurant) {
             Text(separator, color = Color.DarkGray)
         }
 
+        // open status (open / closed)
         isOpen?.let {
             Text(
                 text = if (it) "Open Now" else "Closed",
@@ -231,6 +244,7 @@ fun RestaurantMetaInfo(restaurant: Restaurant) {
             Text(separator, color = Color.DarkGray)
         }
 
+        // price level ($, $$, or $$$)
         priceLevel?.let {
             Text(
                 text = "$".repeat(priceLevel),
