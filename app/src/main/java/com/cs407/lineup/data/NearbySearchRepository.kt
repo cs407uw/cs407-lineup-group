@@ -35,7 +35,11 @@ class NearbySearchRepository {
                     imageUrl = item.optJSONArray("photos")?.let {
                         val photoRef = it.getJSONObject(0).getString("photo_reference")
                         "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=$photoRef&key=$apiKey"
-                    } ?: ""
+                    } ?: "",
+                    rating = item.optDouble("rating", Double.NaN).takeIf { !it.isNaN() },
+                    ratingCount = item.optInt("user_ratings_total").takeIf { it != 0 },
+                    priceLevel = item.optInt("price_level").takeIf { it != 0 },
+                    isOpenNow = item.optJSONObject("opening_hours")?.optBoolean("open_now")
                 )
             }
         }

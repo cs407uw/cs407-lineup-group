@@ -10,8 +10,14 @@ data class Restaurant(
     val type: String,
     val latLng: LatLng,
     val color: Color,
-    val imageUrl: String
+    val imageUrl: String,
+    val rating: Double? = null,
+    val ratingCount: Int? = null,
+    val priceLevel: Int? = null,
+    val isOpenNow: Boolean? = null
 )
+
+
 
 val restaurantColors = listOf(
     Color(0xFFFFCDC9),
