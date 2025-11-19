@@ -1,5 +1,6 @@
 package com.cs407.lineup.screens
 
+import NearbySearchRepository
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,7 +17,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,11 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
 import com.cs407.lineup.R
-import com.cs407.lineup.data.HardcodedRestaurants
 import com.cs407.lineup.data.Restaurant
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
@@ -48,10 +44,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
+import android.util.Log
 import androidx.compose.ui.platform.LocalContext
 import androidx.glance.appwidget.updateAll
+import com.cs407.lineup.BuildConfig
 import com.cs407.lineup.data.LocationViewModel
 import com.cs407.lineup.data.RestaurantPrefs
+import com.cs407.lineup.data.restaurantColors
 import com.cs407.lineup.widget.LastRestaurantWidget
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import kotlinx.coroutines.GlobalScope
@@ -88,6 +87,8 @@ fun MapScreen(
     val locationViewModel: LocationViewModel = viewModel()
     val userLocation by locationViewModel.location.collectAsState()
 
+    var nearbyRestaurants by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { perms ->
@@ -97,6 +98,22 @@ fun MapScreen(
     }
 
     LaunchedEffect(userLocation) {
+        if (userLocation != null) {
+            val repo = NearbySearchRepository()
+
+            val results = repo.getNearbyRestaurants(
+                lat = userLocation!!.latitude,
+                lng = userLocation!!.longitude,
+                apiKey = BuildConfig.MAPS_API_KEY
+            )
+
+            nearbyRestaurants = results
+        }
+    }
+
+
+
+    LaunchedEffect(userLocation) {
         userLocation?.let {
             cameraPositionState.animate(
                 CameraUpdateFactory.newLatLngZoom(it, 15f),
@@ -104,7 +121,6 @@ fun MapScreen(
             )
         }
     }
-
     LaunchedEffect(selected) {
         selected?.let {
             cameraPositionState.animate(
@@ -116,7 +132,6 @@ fun MapScreen(
             }
         }
     }
-
     LaunchedEffect(true) {
         permissionLauncher.launch(
             arrayOf(
@@ -143,12 +158,21 @@ fun MapScreen(
                 )
             }
 
+            nearbyRestaurants.forEach { restaurant ->
+                Marker(
+                    state = MarkerState(position = restaurant.latLng),
+                    title = restaurant.name,
+                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
+                )
+            }
+            val toShow = selected
+            selected?.let { restaurant ->
+                Marker(
+                    state = MarkerState(position = restaurant.latLng),
+                    title = restaurant.name
+                )
+            }
 
-            val toShow = selected ?: HardcodedRestaurants.first()
-            Marker(
-                state = MarkerState(position = toShow.latLng),
-                title = toShow.name
-            )
         }
 
         Box(
@@ -285,8 +309,8 @@ fun MapScreen(
                 }
             ) {
                 RestaurantListSheet(
-                    restaurants = HardcodedRestaurants,
-                    onItemClick = { r ->
+                    restaurants = nearbyRestaurants,
+                            onItemClick = { r ->
                         selected = r
                         RestaurantPrefs.saveRestaurant(
                             context,
@@ -439,6 +463,17 @@ fun RestaurantListSheet(
                     )
                 }
             }
+        }
+        if (restaurants.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = Color(0xFF1B5E20))
+            }
+            return
         }
 
         LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
