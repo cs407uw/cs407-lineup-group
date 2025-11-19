@@ -45,28 +45,35 @@ fun RestaurantDetailScreen(
     locationViewModel: LocationViewModel = viewModel()
 ) {
     val userLocation by locationViewModel.location.collectAsState()
+    val context = LocalContext.current
 
     LaunchedEffect(true) {
         locationViewModel.startLocationUpdates()
     }
 
-    val context = LocalContext.current
+    val safeImage = restaurant.imageUrl.ifBlank {
+        "https://via.placeholder.com/400x300?text=No+Image"
+    }
+    val safeDescription = restaurant.description.ifBlank { "No description available." }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(restaurant.color)
+            .background(restaurant.color.copy(alpha = 0.4f))
             .padding(20.dp),
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Top
     ) {
-        Spacer(modifier = Modifier.height(30.dp))
+
+        Spacer(modifier = Modifier.height(20.dp))
 
         Text(
             text = restaurant.name,
             fontFamily = monaspace,
-            fontSize = 28.sp,
+            fontSize = 32.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
+            color = Color.Black,
+            modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -74,40 +81,38 @@ fun RestaurantDetailScreen(
         Box(
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
-                .background(color = Color.White)
-                .alpha(0.3f)
-                .padding(8.dp)
+                .background(Color.White.copy(alpha = 0.8f))
+                .padding(horizontal = 16.dp, vertical = 6.dp)
         ) {
             Text(
-                text = "${restaurant.waitTimeMinutes} MIN",
+                text = "${restaurant.waitTimeMinutes} MIN WAIT",
                 fontFamily = monaspace,
-                fontSize = 20.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
+                color = Color.Black
             )
         }
 
-
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         AsyncImage(
-            model = restaurant.imageUrl,
+            model = safeImage,
             contentDescription = "Restaurant Image",
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp)
+                .height(240.dp),
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Text(
-            text = restaurant.description,
+            text = safeDescription,
             fontFamily = ubuntu,
             fontSize = 16.sp,
             color = Color.Black
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(30.dp))
 
         Button(
             onClick = {
@@ -118,21 +123,15 @@ fun RestaurantDetailScreen(
                                 "&destination=${restaurant.latLng.latitude},${restaurant.latLng.longitude}" +
                                 "&travelmode=walking"
                     )
-
-                    val intent = Intent(Intent.ACTION_VIEW, uri)
-                    context.startActivity(intent)
+                    context.startActivity(Intent(Intent.ACTION_VIEW, uri))
                 } else {
                     Toast.makeText(context, "Finding your location…", Toast.LENGTH_SHORT).show()
                 }
             },
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20)),
             modifier = Modifier.align(Alignment.CenterHorizontally)
         ) {
-            Text(
-                "NAVIGATE",
-                color = Color.Black,
-                fontWeight = FontWeight.Bold
-            )
+            Text("NAVIGATE", color = Color.White, fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
