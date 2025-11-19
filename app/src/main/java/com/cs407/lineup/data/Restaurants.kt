@@ -11,6 +11,7 @@ data class Restaurant(
     val description: String,
     val waitTimeMinutes: Int,
     val type: String,
+    val types: List<String>,
     val latLng: LatLng,
     val color: Color,
     val imageUrl: String,
@@ -22,7 +23,7 @@ data class Restaurant(
 
 /**
  * a set of colors associated with a restaurant card. these are rotating which allows
- * for each restaurant to get a different color in an alternating fashion
+ * for each restaurant to get a different color in a
  */
 val restaurantColors = listOf(
     Color(0xFFFFCDC9),

@@ -394,16 +394,18 @@ fun RestaurantListSheet(
     // label for dropdown & all the categories
     val allLabel = stringResource(R.string.category_all)
     var selectedCategory by remember { mutableStateOf(allLabel) }
+
     val categories = listOf(
         stringResource(R.string.category_all),
-        stringResource(R.string.category_american),
-        stringResource(R.string.category_mexican),
-        stringResource(R.string.category_italian),
-        stringResource(R.string.category_pub_bar),
-        stringResource(R.string.category_cafe)
+        "Restaurant",
+        "Bar",
+        "Cafe",
+        "Grocery"
     )
+
     // variables for expanded and filter to remember their respective states
     var expanded by remember { mutableStateOf(false) }
+
     val filtered by remember(selectedCategory, restaurants) {
         derivedStateOf {
             if (selectedCategory == allLabel) restaurants
@@ -430,7 +432,8 @@ fun RestaurantListSheet(
                     .clip(RoundedCornerShape(50))
                     .background(Color(0xFF1B5E20))
                     .padding(vertical = 8.dp, horizontal = 16.dp)
-                    .fillMaxWidth(), contentAlignment = Alignment.CenterStart
+                    .fillMaxWidth(),
+                contentAlignment = Alignment.CenterStart
             ) {
                 // show the currently selected category text in the dropdown menu title
                 Row(
@@ -449,7 +452,8 @@ fun RestaurantListSheet(
                 }
 
                 Box(
-                    modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.CenterEnd
                 ) {
                     Icon(
                         imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
@@ -469,27 +473,31 @@ fun RestaurantListSheet(
             ) {
                 // add each category option available
                 categories.forEach { category ->
-                    DropdownMenuItem(text = {
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = category,
-                                color = Color.White,
-                                fontSize = 20.sp,
-                                fontFamily = monaspace,
-                                fontWeight = FontWeight.Bold
-                            )
+                    DropdownMenuItem(
+                        text = {
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = category,
+                                    color = Color.White,
+                                    fontSize = 20.sp,
+                                    fontFamily = monaspace,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        },
+                        onClick = {
+                            // if one is clicked, update the selected category
+                            selectedCategory = category
+                            expanded = false
                         }
-                    }, onClick = {
-                        // if one is clicked, update the selected category
-                        selectedCategory = category
-                        expanded = false
-                    })
+                    )
                 }
             }
         }
+
         // if restaurants haven't loaded yet, show loading spinner
         if (restaurants.isEmpty()) {
             Box(
@@ -512,6 +520,7 @@ fun RestaurantListSheet(
         }
     }
 }
+
 
 /**
  * a single restaurant list item
@@ -544,7 +553,12 @@ fun RestaurantListItem(restaurant: Restaurant, index: Int, onClick: () -> Unit) 
                 fontFamily = monaspace,
                 fontWeight = FontWeight.Bold
             )
-            Text(restaurant.type, fontSize = 20.sp, color = Color.DarkGray, fontFamily = ubuntu)
+            Text(
+                restaurant.types.joinToString(" · "),
+                fontSize = 20.sp,
+                color = Color.DarkGray,
+                fontFamily = ubuntu
+            )
         }
 
         // right side shows the wait time box
