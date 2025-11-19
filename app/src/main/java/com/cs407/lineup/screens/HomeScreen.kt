@@ -1,5 +1,6 @@
 package com.cs407.lineup.screens
 
+import NearbySearchRepository
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,7 +17,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.*
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,11 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
 import com.cs407.lineup.R
-import com.cs407.lineup.data.HardcodedRestaurants
 import com.cs407.lineup.data.Restaurant
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.model.CameraPosition
@@ -50,44 +46,53 @@ import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
 import androidx.compose.ui.platform.LocalContext
 import androidx.glance.appwidget.updateAll
+import com.cs407.lineup.BuildConfig
 import com.cs407.lineup.data.LocationViewModel
 import com.cs407.lineup.data.RestaurantPrefs
 import com.cs407.lineup.widget.LastRestaurantWidget
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import kotlinx.coroutines.GlobalScope
 
-
-val roca = FontFamily(Font(R.font.roca2))
 val ubuntu = FontFamily(Font(R.font.ubuntu))
 val monaspace = FontFamily(Font(R.font.monaspace_neon))
 
-
+/**
+ * the home screen of the app that includes a google map, user location marker,
+ * restaurant markers, bottom sheet w/ list of nearby fetched restaurants, and profile card
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MapScreen(
-    modifier: Modifier = Modifier,
-    onRestaurantClick: (Restaurant) -> Unit
+fun HomeScreen(
+    modifier: Modifier = Modifier, onRestaurantClick: (Restaurant) -> Unit
 ) {
+    val context = LocalContext.current
 
+    // variables for bottom sheet scope & state
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     var showSheet by remember { mutableStateOf(true) }
 
+    // variables for profile card and user profile fields
     var showProfileCard by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var home by remember { mutableStateOf("") }
     var work by remember { mutableStateOf("") }
 
+    // current selected restaurant
     var selected by remember { mutableStateOf<Restaurant?>(null) }
+
+    // variables for map camera, initial position, and user GPS
     val initial = selected?.latLng ?: LatLng(43.0731, -89.4012) // default Madison
     val cameraPositionState: CameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(initial, 13f)
     }
-    val context = LocalContext.current
-
     val locationViewModel: LocationViewModel = viewModel()
     val userLocation by locationViewModel.location.collectAsState()
 
+    // variable for fetching nearby restaurants
+    var nearbyRestaurants by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
+
+    // permissions launcher that requests fine and coarse location
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { perms ->
@@ -96,20 +101,35 @@ fun MapScreen(
         }
     }
 
+    // when the user location changes, fetch nearby restaurants and store results in a state to update ui
+    LaunchedEffect(userLocation) {
+        if (userLocation != null) {
+            val repo = NearbySearchRepository()
+
+            val results = repo.getNearbyRestaurants(
+                lat = userLocation!!.latitude,
+                lng = userLocation!!.longitude,
+                apiKey = BuildConfig.MAPS_API_KEY
+            )
+
+            nearbyRestaurants = results
+        }
+    }
+
+    // map animation that gets triggered whenever use location updates
     LaunchedEffect(userLocation) {
         userLocation?.let {
             cameraPositionState.animate(
-                CameraUpdateFactory.newLatLngZoom(it, 15f),
-                durationMs = 600
+                CameraUpdateFactory.newLatLngZoom(it, 15f), durationMs = 600
             )
         }
     }
 
+    // map animation when user selects a restaurant (also used for updating homescreen widget)
     LaunchedEffect(selected) {
         selected?.let {
             cameraPositionState.animate(
-                CameraUpdateFactory.newLatLngZoom(it.latLng, 15f),
-                durationMs = 600
+                CameraUpdateFactory.newLatLngZoom(it.latLng, 15f), durationMs = 600
             )
             GlobalScope.launch {
                 LastRestaurantWidget().updateAll(context)
@@ -117,40 +137,55 @@ fun MapScreen(
         }
     }
 
+    // ask for location permissions as soon as the screen is visible
     LaunchedEffect(true) {
         permissionLauncher.launch(
             arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
+                Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION
             )
         )
     }
 
-
-    Box(modifier = modifier.fillMaxSize().background(Color.White)) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color.White)
+    ) {
+        // main google map UI; bottom padding shrinks the map when the sheet is open
         GoogleMap(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = if (showSheet) 220.dp else 0.dp),
             cameraPositionState = cameraPositionState
         ) {
+            // create marker for user's current location (blue)
             userLocation?.let { loc ->
                 Marker(
                     state = MarkerState(position = loc),
                     title = "You",
-                    icon =
-                        BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
+                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
                 )
             }
 
+            // draw all nearby restaurants w/ red marker
+            nearbyRestaurants.forEach { restaurant ->
+                Marker(
+                    state = MarkerState(position = restaurant.latLng),
+                    title = restaurant.name,
+                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
+                )
+            }
 
-            val toShow = selected ?: HardcodedRestaurants.first()
-            Marker(
-                state = MarkerState(position = toShow.latLng),
-                title = toShow.name
-            )
+            // highlight marker for the currently selected restaurant
+            selected?.let { restaurant ->
+                Marker(
+                    state = MarkerState(position = restaurant.latLng), title = restaurant.name
+                )
+            }
+
         }
 
+        // profile button
         Box(
             modifier = Modifier
                 .padding(top = 40.dp, end = 20.dp)
@@ -172,21 +207,20 @@ fun MapScreen(
             }
         }
 
-
+        // profile card overlay (when profile button is clicked to open)
         if (showProfileCard) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.6f))
-                    .clickable { showProfileCard = false },
-                contentAlignment = Alignment.Center
+                    // close profile settings when clicked outside of the menu
+                    .clickable { showProfileCard = false }, contentAlignment = Alignment.Center
             ) {
                 ElevatedCard(
                     modifier = Modifier
                         .padding(24.dp)
                         .fillMaxWidth(0.9f)
-                        .clickable(enabled = false) {}
-                ) {
+                        .clickable(enabled = false) {}) {
                     Column(
                         modifier = Modifier.padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -197,7 +231,13 @@ fun MapScreen(
                             modifier = Modifier.size(64.dp)
                         )
                         Spacer(modifier = Modifier.height(10.dp))
-                        Text(stringResource(R.string.profile_preferences), fontFamily = monaspace, fontWeight = FontWeight.Bold)
+
+                        // profile title and fields
+                        Text(
+                            stringResource(R.string.profile_preferences),
+                            fontFamily = monaspace,
+                            fontWeight = FontWeight.Bold
+                        )
 
                         OutlinedTextField(
                             value = name,
@@ -207,7 +247,11 @@ fun MapScreen(
                                 .fillMaxWidth()
                                 .padding(vertical = 8.dp),
                             shape = RoundedCornerShape(12.dp),
-                            leadingIcon = { Icon(Icons.Default.AccountCircle, contentDescription = null) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.AccountCircle, contentDescription = null
+                                )
+                            },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF1B5E20),
                                 unfocusedBorderColor = Color.LightGray,
@@ -251,6 +295,7 @@ fun MapScreen(
                         )
 
                         Spacer(modifier = Modifier.height(8.dp))
+                        // button to close the profile card
                         Button(
                             onClick = { showProfileCard = false },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20))
@@ -262,11 +307,14 @@ fun MapScreen(
             }
         }
 
+        // bottom sheet that displays all nearby restaurant, including a dropdown selector and filtered restaurant list
         if (showSheet) {
             ModalBottomSheet(
                 onDismissRequest = { showSheet = false },
                 sheetState = sheetState,
                 containerColor = Color.White,
+
+                // drag handle (small gray bar at top of sheet)
                 dragHandle = {
                     Box(
                         modifier = Modifier
@@ -282,33 +330,32 @@ fun MapScreen(
                                 .background(Color.LightGray)
                         )
                     }
-                }
-            ) {
-                RestaurantListSheet(
-                    restaurants = HardcodedRestaurants,
-                    onItemClick = { r ->
-                        selected = r
-                        RestaurantPrefs.saveRestaurant(
-                            context,
-                            r.name,
-                            r.waitTimeMinutes,
-                            r.color.value.toInt()
-                        )
-                        GlobalScope.launch {
-                            LastRestaurantWidget().updateAll(context)
-                        }
-                        onRestaurantClick(r)
-                    },
+                }) {
 
-                    onCategoryChangeFirst = { first -> first?.let { selected = it } },
-                    onClose = {
+                // the actual list within the bottom sheet; includes the restaurants w/ filtering applied
+                RestaurantListSheet(
+                    // launch a coroutine in GlobalScope so it lives throughout lifetime of app to update widget
+                    // when a restaurant is clicked on
+                    restaurants = nearbyRestaurants, onItemClick = { r ->
+                    selected = r
+                    RestaurantPrefs.saveRestaurant(
+                        context, r.name, r.waitTimeMinutes, r.color.value.toInt()
+                    )
+                    GlobalScope.launch {
+                        LastRestaurantWidget().updateAll(context)
+                    }
+                    onRestaurantClick(r)
+                },
+                    // automatically highlight the first restaurant when user changes the filter category
+                    // this is so that we can display the first one in the list on the map by default
+                    onCategoryChangeFirst = { first -> first?.let { selected = it } }, onClose = {
                         scope.launch { sheetState.hide() }.invokeOnCompletion {
                             showSheet = false
                         }
-                    }
-                )
+                    })
             }
         } else {
+            // when the sheet is closed, show a small draggable bar at the bottom
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -317,9 +364,9 @@ fun MapScreen(
                     .background(Color.White, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
                     .clickable {
                         showSheet = true
+                        // reopen list of restaurants in bottom sheet when clicked
                         scope.launch { sheetState.show() }
-                    },
-                contentAlignment = Alignment.Center
+                    }, contentAlignment = Alignment.Center
             ) {
                 Box(
                     modifier = Modifier
@@ -333,7 +380,9 @@ fun MapScreen(
     }
 }
 
-
+/**
+ * bottom sheet displaying the list of restaurants with category filtering
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RestaurantListSheet(
@@ -342,16 +391,19 @@ fun RestaurantListSheet(
     onCategoryChangeFirst: (Restaurant?) -> Unit,
     onClose: () -> Unit
 ) {
+    // label for dropdown & all the categories
     val allLabel = stringResource(R.string.category_all)
     var selectedCategory by remember { mutableStateOf(allLabel) }
+
     val categories = listOf(
         stringResource(R.string.category_all),
-        stringResource(R.string.category_american),
-        stringResource(R.string.category_mexican),
-        stringResource(R.string.category_italian),
-        stringResource(R.string.category_pub_bar),
-        stringResource(R.string.category_cafe)
+        "Restaurant",
+        "Bar",
+        "Cafe",
+        "Grocery"
     )
+
+    // variables for expanded and filter to remember their respective states
     var expanded by remember { mutableStateOf(false) }
 
     val filtered by remember(selectedCategory, restaurants) {
@@ -361,6 +413,7 @@ fun RestaurantListSheet(
         }
     }
 
+    // when selected category is changed, refilter and update first restaurant to be highlighted on map
     LaunchedEffect(selectedCategory) {
         onCategoryChangeFirst(filtered.firstOrNull())
     }
@@ -375,13 +428,14 @@ fun RestaurantListSheet(
         ) {
             Box(
                 modifier = Modifier
-                    .menuAnchor()
+                    .menuAnchor() // anchor the dropdown to this element
                     .clip(RoundedCornerShape(50))
                     .background(Color(0xFF1B5E20))
                     .padding(vertical = 8.dp, horizontal = 16.dp)
                     .fillMaxWidth(),
                 contentAlignment = Alignment.CenterStart
             ) {
+                // show the currently selected category text in the dropdown menu title
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -397,7 +451,7 @@ fun RestaurantListSheet(
                     )
                 }
 
-                Box (
+                Box(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.CenterEnd
                 ) {
@@ -409,6 +463,7 @@ fun RestaurantListSheet(
                 }
             }
 
+            // the dropdown list of categories
             ExposedDropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
@@ -416,6 +471,7 @@ fun RestaurantListSheet(
                     .background(Color(0xFF1B5E20))
                     .clip(RoundedCornerShape(12.dp))
             ) {
+                // add each category option available
                 categories.forEach { category ->
                     DropdownMenuItem(
                         text = {
@@ -433,6 +489,7 @@ fun RestaurantListSheet(
                             }
                         },
                         onClick = {
+                            // if one is clicked, update the selected category
                             selectedCategory = category
                             expanded = false
                         }
@@ -441,6 +498,20 @@ fun RestaurantListSheet(
             }
         }
 
+        // if restaurants haven't loaded yet, show loading spinner
+        if (restaurants.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = Color(0xFF1B5E20))
+            }
+            return
+        }
+
+        // list of restaurants (once loaded)
         LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
             itemsIndexed(filtered) { index, restaurant ->
                 HorizontalDivider(color = Color.Black, thickness = 1.dp)
@@ -450,8 +521,13 @@ fun RestaurantListSheet(
     }
 }
 
+
+/**
+ * a single restaurant list item
+ */
 @Composable
 fun RestaurantListItem(restaurant: Restaurant, index: Int, onClick: () -> Unit) {
+    // background colors that rotate every 6 items  ( use modulus ;) )
     val backgroundColors = listOf(
         Color(0xFFFFCDC9),
         Color(0xFFFFECBF),
@@ -462,18 +538,30 @@ fun RestaurantListItem(restaurant: Restaurant, index: Int, onClick: () -> Unit) 
     )
     val backgroundColor = backgroundColors[index % backgroundColors.size]
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(backgroundColor)
-            .clickable { onClick() }
-            .padding(vertical = 12.dp, horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(modifier = Modifier
+        .fillMaxWidth()
+        .background(backgroundColor)
+        .clickable { onClick() }
+        .padding(vertical = 12.dp, horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(restaurant.name, fontSize = 25.sp, color = Color.Black, fontFamily = monaspace, fontWeight = FontWeight.Bold)
-            Text(restaurant.type, fontSize = 20.sp, color = Color.DarkGray, fontFamily = ubuntu)
+            // left side has the name and category
+            Text(
+                restaurant.name,
+                fontSize = 25.sp,
+                color = Color.Black,
+                fontFamily = monaspace,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                restaurant.types.joinToString(" · "),
+                fontSize = 20.sp,
+                color = Color.DarkGray,
+                fontFamily = ubuntu
+            )
         }
+
+        // right side shows the wait time box
         Box(
             modifier = Modifier
                 .width(64.dp)
@@ -482,7 +570,10 @@ fun RestaurantListItem(restaurant: Restaurant, index: Int, onClick: () -> Unit) 
                 .background(Color.White),
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(8.dp)) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(8.dp)
+            ) {
                 Text(
                     text = "${restaurant.waitTimeMinutes}",
                     fontSize = 25.sp,
@@ -491,10 +582,7 @@ fun RestaurantListItem(restaurant: Restaurant, index: Int, onClick: () -> Unit) 
                     color = Color(0xFF1B5E20)
                 )
                 Text(
-                    text = "MIN",
-                    fontSize = 15.sp,
-                    fontFamily = ubuntu,
-                    color = Color.Black
+                    text = "MIN", fontSize = 15.sp, fontFamily = ubuntu, color = Color.Black
                 )
             }
         }

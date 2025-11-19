@@ -36,17 +36,13 @@ class LastRestaurantWidget : GlanceAppWidget() {
         provideContent {
 
             Column(
-                modifier = GlanceModifier
-                    .fillMaxSize()
-                    .padding(12.dp)
-                    .cornerRadius(16.dp)
+                modifier = GlanceModifier.fillMaxSize().padding(12.dp).cornerRadius(16.dp)
                     .background(ColorProvider(R.color.white)),
                 verticalAlignment = Alignment.Vertical.CenterVertically,
             ) {
 
                 Text(
-                    text = name,
-                    style = TextStyle(
+                    text = name, style = TextStyle(
                         fontSize = 20.sp,
                         fontFamily = FontFamily.Monospace,
                     )
@@ -58,23 +54,19 @@ class LastRestaurantWidget : GlanceAppWidget() {
                     verticalAlignment = Alignment.Vertical.CenterVertically
                 ) {
                     Column(
-                        modifier = GlanceModifier
-                            .background(ColorProvider(R.color.white))
-                            .padding(6.dp)
-                            .cornerRadius(8.dp),
+                        modifier = GlanceModifier.background(ColorProvider(R.color.white))
+                            .padding(6.dp).cornerRadius(8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "$wait",
-                            style = TextStyle(
+                            text = "$wait", style = TextStyle(
                                 fontSize = 24.sp,
                                 fontFamily = FontFamily.Monospace,
                                 color = ColorProvider(R.color.dark_green)
                             )
                         )
                         Text(
-                            text = "MIN",
-                            style = TextStyle(
+                            text = "MIN", style = TextStyle(
                                 fontSize = 12.sp,
                                 fontFamily = FontFamily(R.font.ubuntu.toString()),
                                 color = ColorProvider(android.R.color.black)
@@ -85,8 +77,7 @@ class LastRestaurantWidget : GlanceAppWidget() {
                     Spacer(GlanceModifier.width(10.dp))
 
                     Text(
-                        text = "Estimated wait time",
-                        style = TextStyle(
+                        text = "Estimated wait time", style = TextStyle(
                             fontSize = 14.sp,
                             fontFamily = FontFamily(R.font.ubuntu.toString()),
                             color = ColorProvider(android.R.color.darker_gray)
@@ -97,17 +88,13 @@ class LastRestaurantWidget : GlanceAppWidget() {
                 Spacer(GlanceModifier.height(14.dp))
 
                 Box(
-                    modifier = GlanceModifier
-                        .fillMaxWidth()
-                        .height(40.dp)
-                        .cornerRadius(12.dp)
+                    modifier = GlanceModifier.fillMaxWidth().height(40.dp).cornerRadius(12.dp)
                         .background(ColorProvider(R.color.dark_green))
                         .clickable(actionStartActivity<MainActivity>()),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Open App",
-                        style = TextStyle(
+                        text = "Open App", style = TextStyle(
                             fontSize = 16.sp,
                             color = ColorProvider(android.R.color.white),
                             fontFamily = FontFamily.Monospace
