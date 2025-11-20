@@ -305,20 +305,65 @@ fun CaptureLineButton(restaurant: Restaurant) {
             resultMessage = null
             
             coroutineScope.launch {
-                // Get API key from BuildConfig (placeholder for now)
-                val apiKey = com.cs407.lineup.BuildConfig.MAPS_API_KEY // Replace with actual RunPod API key
+                // Get Gemini API key from BuildConfig
+                val apiKey = com.cs407.lineup.BuildConfig.GEMINI_API_KEY
                 val result = waitTimeRepository.uploadImage(imageFile, apiKey)
                 
                 isUploading = false
                 
                 if (result.isSuccess) {
-                    resultMessage = "Wait Time: ${result.waitTimeMinutes} min (${(result.confidence!! * 100).toInt()}% confident)"
+                    // Use the calculator to format the result
+                    val calculator = com.cs407.lineup.data.WaitTimeCalculator()
+                    resultMessage = calculator.formatWaitTime(
+                        result.waitTimeMinutes!!,
+                        result.confidence!!
+                    )
                 } else {
                     resultMessage = result.errorMessage ?: "Unknown error"
                 }
             }
         } else {
             Toast.makeText(context, "Image capture cancelled", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    
+    // Image picker launcher (for testing with real images on emulator)
+    val imagePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                // Copy the selected image to our cache file
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    imageFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                
+                // Upload the image
+                isUploading = true
+                resultMessage = null
+                
+                coroutineScope.launch {
+                    val apiKey = com.cs407.lineup.BuildConfig.GEMINI_API_KEY
+                    val result = waitTimeRepository.uploadImage(imageFile, apiKey)
+                    
+                    isUploading = false
+                    
+                    if (result.isSuccess) {
+                        val calculator = com.cs407.lineup.data.WaitTimeCalculator()
+                        resultMessage = calculator.formatWaitTime(
+                            result.waitTimeMinutes!!,
+                            result.confidence!!
+                        )
+                    } else {
+                        resultMessage = result.errorMessage ?: "Unknown error"
+                    }
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error loading image: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
     }
     
@@ -337,6 +382,7 @@ fun CaptureLineButton(restaurant: Restaurant) {
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
     ) {
+        // Camera button
         Button(
             onClick = {
                 // Check camera permission
@@ -363,6 +409,22 @@ fun CaptureLineButton(restaurant: Restaurant) {
                 text = if (isUploading) "UPLOADING..." else "CAPTURE LINE",
                 color = Color.White,
                 fontWeight = FontWeight.Bold
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Gallery picker button (for testing)
+        TextButton(
+            onClick = {
+                imagePickerLauncher.launch("image/*")
+            },
+            enabled = !isUploading
+        ) {
+            Text(
+                text = "Or choose from gallery",
+                fontSize = 14.sp,
+                color = Color(0xFF2196F3)
             )
         }
         

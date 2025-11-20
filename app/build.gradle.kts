@@ -35,6 +35,12 @@ android {
             "MAPS_API_KEY",
             "\"${localProps.getProperty("MAPS_API_KEY") ?: ""}\""
         )
+        
+        buildConfigField(
+            "String",
+            "GEMINI_API_KEY",
+            "\"${localProps.getProperty("GEMINI_API_KEY") ?: ""}\""
+        )
     }
 
     buildTypes {
