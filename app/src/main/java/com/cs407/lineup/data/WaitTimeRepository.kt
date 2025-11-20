@@ -118,7 +118,14 @@ class WaitTimeRepository {
               "analysis_notes": "<brief explanation>"
             }
             
-            Be accurate with people_count. If unclear, estimate conservatively and lower confidence.
+            IMPORTANT RULES:
+            1. If you see NO LINE or NO PEOPLE WAITING, set people_count to 0
+            2. If people_count is 0, set line_density to "sparse" and confidence high
+            3. Only count people who are clearly waiting in a queue/line
+            4. Do NOT count staff, passersby, or people already inside
+            5. If the image shows an empty venue or no visible queue, people_count MUST be 0
+            6. Be accurate with people_count - if unclear, estimate conservatively and lower confidence
+            
             Return ONLY the JSON, no other text.
         """.trimIndent()
         

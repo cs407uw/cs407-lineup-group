@@ -41,6 +41,7 @@ import com.cs407.lineup.data.Restaurant
 import coil.compose.AsyncImage
 import com.cs407.lineup.data.LocationViewModel
 import com.cs407.lineup.data.WaitTimeRepository
+import com.cs407.lineup.data.FirebaseRepository
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
