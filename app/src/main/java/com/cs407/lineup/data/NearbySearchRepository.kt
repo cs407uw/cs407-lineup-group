@@ -1,3 +1,4 @@
+import android.util.Log
 import com.cs407.lineup.data.Restaurant
 import com.cs407.lineup.data.restaurantColors
 import com.google.android.gms.maps.model.LatLng
@@ -105,3 +106,4 @@ class NearbySearchRepository {
 
 
 }
+

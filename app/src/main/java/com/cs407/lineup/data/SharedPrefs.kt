@@ -38,3 +38,50 @@ object RestaurantPrefs {
         )
     }
 }
+
+/**
+ * data class to represent user profile preferences
+ */
+data class UserProfile(
+    val name: String,
+    val home: String,
+    val work: String,
+    val favoriteCategories: Set<String> = emptySet()
+)
+
+/**
+ * SharedPreferences helper object to store and retrieve user profile data
+ */
+object ProfilePrefs {
+    private const val PREFS = "profile_prefs"
+    private const val KEY_NAME = "name"
+    private const val KEY_HOME = "home"
+    private const val KEY_WORK = "work"
+    private const val KEY_FAVORITE_CATEGORIES = "favorite_categories"
+
+    fun saveProfile(context: Context, name: String, home: String, work: String, favoriteCategories: Set<String>) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(KEY_NAME, name)
+            .putString(KEY_HOME, home)
+            .putString(KEY_WORK, work)
+            .putString(KEY_FAVORITE_CATEGORIES, favoriteCategories.joinToString(","))
+            .apply()
+    }
+
+    fun loadProfile(context: Context): UserProfile {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val categoriesString = prefs.getString(KEY_FAVORITE_CATEGORIES, "") ?: ""
+        val favoriteCategories = if (categoriesString.isNotEmpty()) {
+            categoriesString.split(",").toSet()
+        } else {
+            emptySet()
+        }
+        return UserProfile(
+            name = prefs.getString(KEY_NAME, "") ?: "",
+            home = prefs.getString(KEY_HOME, "") ?: "",
+            work = prefs.getString(KEY_WORK, "") ?: "",
+            favoriteCategories = favoriteCategories
+        )
+    }
+}

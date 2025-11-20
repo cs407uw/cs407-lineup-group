@@ -1,6 +1,7 @@
 package com.cs407.lineup.screens
 
 import NearbySearchRepository
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,6 +50,7 @@ import androidx.glance.appwidget.updateAll
 import com.cs407.lineup.BuildConfig
 import com.cs407.lineup.data.LocationViewModel
 import com.cs407.lineup.data.RestaurantPrefs
+import com.cs407.lineup.data.ProfilePrefs
 import com.cs407.lineup.widget.LastRestaurantWidget
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import kotlinx.coroutines.GlobalScope
@@ -77,6 +79,7 @@ fun HomeScreen(
     var name by remember { mutableStateOf("") }
     var home by remember { mutableStateOf("") }
     var work by remember { mutableStateOf("") }
+    var favoriteCategories by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     // current selected restaurant
     var selected by remember { mutableStateOf<Restaurant?>(null) }
@@ -144,6 +147,15 @@ fun HomeScreen(
                 Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION
             )
         )
+    }
+
+    // load saved profile data when screen starts
+    LaunchedEffect(Unit) {
+        val savedProfile = ProfilePrefs.loadProfile(context)
+        name = savedProfile.name
+        home = savedProfile.home
+        work = savedProfile.work
+        favoriteCategories = savedProfile.favoriteCategories
     }
 
     Box(
@@ -294,13 +306,82 @@ fun HomeScreen(
                             )
                         )
 
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // favorite categories section
+                        Text(
+                            "Favorite Categories",
+                            fontFamily = monaspace,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            modifier = Modifier.align(Alignment.Start)
+                        )
+
                         Spacer(modifier = Modifier.height(8.dp))
-                        // button to close the profile card
-                        Button(
-                            onClick = { showProfileCard = false },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20))
+
+                        // category checkboxes
+                        val availableCategories = listOf("Restaurant", "Bar", "Cafe", "Grocery")
+                        availableCategories.forEach { category ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        favoriteCategories = if (favoriteCategories.contains(category)) {
+                                            favoriteCategories - category
+                                        } else {
+                                            favoriteCategories + category
+                                        }
+                                    }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = favoriteCategories.contains(category),
+                                    onCheckedChange = { checked ->
+                                        favoriteCategories = if (checked) {
+                                            favoriteCategories + category
+                                        } else {
+                                            favoriteCategories - category
+                                        }
+                                    },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = Color(0xFF1B5E20),
+                                        uncheckedColor = Color.Gray
+                                    )
+                                )
+                                Text(
+                                    text = category,
+                                    fontFamily = ubuntu,
+                                    modifier = Modifier.padding(start = 8.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        // buttons to save and close the profile card
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text(stringResource(R.string.close_button), color = Color.White)
+                            Button(
+                                onClick = {
+                                    ProfilePrefs.saveProfile(context, name, home, work, favoriteCategories)
+                                    showProfileCard = false
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20)),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Save", color = Color.White)
+                            }
+                            OutlinedButton(
+                                onClick = { showProfileCard = false },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color(0xFF1B5E20)
+                                )
+                            ) {
+                                Text(stringResource(R.string.close_button))
+                            }
                         }
                     }
                 }
@@ -337,22 +418,24 @@ fun HomeScreen(
                     // launch a coroutine in GlobalScope so it lives throughout lifetime of app to update widget
                     // when a restaurant is clicked on
                     restaurants = nearbyRestaurants, onItemClick = { r ->
-                    selected = r
-                    RestaurantPrefs.saveRestaurant(
-                        context, r.name, r.waitTimeMinutes, r.color.value.toInt()
-                    )
-                    GlobalScope.launch {
-                        LastRestaurantWidget().updateAll(context)
-                    }
-                    onRestaurantClick(r)
-                },
+                        selected = r
+                        RestaurantPrefs.saveRestaurant(
+                            context, r.name, r.waitTimeMinutes, r.color.value.toInt()
+                        )
+                        GlobalScope.launch {
+                            LastRestaurantWidget().updateAll(context)
+                        }
+                        onRestaurantClick(r)
+                    },
                     // automatically highlight the first restaurant when user changes the filter category
                     // this is so that we can display the first one in the list on the map by default
                     onCategoryChangeFirst = { first -> first?.let { selected = it } }, onClose = {
                         scope.launch { sheetState.hide() }.invokeOnCompletion {
                             showSheet = false
                         }
-                    })
+                    },
+                    favoriteCategories = favoriteCategories
+                )
             }
         } else {
             // when the sheet is closed, show a small draggable bar at the bottom
@@ -389,11 +472,20 @@ fun RestaurantListSheet(
     restaurants: List<Restaurant>,
     onItemClick: (Restaurant) -> Unit,
     onCategoryChangeFirst: (Restaurant?) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    favoriteCategories: Set<String> = emptySet()
 ) {
     // label for dropdown & all the categories
     val allLabel = stringResource(R.string.category_all)
-    var selectedCategory by remember { mutableStateOf(allLabel) }
+
+    // determine initial category based on favorites
+    val initialCategory = when {
+        favoriteCategories.isEmpty() -> allLabel
+        favoriteCategories.size == 1 -> favoriteCategories.first()
+        else -> allLabel // multiple favorites, show all
+    }
+
+    var selectedCategory by remember { mutableStateOf(initialCategory) }
 
     val categories = listOf(
         stringResource(R.string.category_all),
@@ -493,6 +585,8 @@ fun RestaurantListSheet(
                             selectedCategory = category
                             expanded = false
                         }
+
+
                     )
                 }
             }
@@ -588,3 +682,4 @@ fun RestaurantListItem(restaurant: Restaurant, index: Int, onClick: () -> Unit) 
         }
     }
 }
+
