@@ -40,6 +40,12 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cs407.lineup.data.Restaurant
 import coil.compose.AsyncImage
 import com.cs407.lineup.data.LocationViewModel
+import com.cs407.lineup.data.WaitTimeRepository
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import java.io.File
 
 @Composable
 fun RestaurantDetailScreen(
@@ -175,6 +181,11 @@ fun RestaurantDetailScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // Capture Line button
+                    CaptureLineButton(restaurant = restaurant)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     // back button
                     TextButton(onClick = onBack) {
                         Text("Back", color = Color.Gray, fontSize = 16.sp)
@@ -256,3 +267,115 @@ fun RestaurantMetaInfo(restaurant: Restaurant) {
     }
 }
 
+/**
+ * Composable button to capture an image of the line and upload to RunPod API
+ * for wait time estimation
+ */
+@Composable
+fun CaptureLineButton(restaurant: Restaurant) {
+    val context = LocalContext.current
+    val waitTimeRepository = remember { WaitTimeRepository() }
+    val coroutineScope = rememberCoroutineScope()
+    
+    // State for loading and result
+    var isUploading by remember { androidx.compose.runtime.mutableStateOf(false) }
+    var resultMessage by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    
+    // File to store the captured image
+    val imageFile = remember {
+        File(context.cacheDir, "captured_line_${System.currentTimeMillis()}.jpg")
+    }
+    
+    // URI for the image file
+    val imageUri = remember(imageFile) {
+        androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            imageFile
+        )
+    }
+    
+    // Camera launcher
+    val cameraLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            // Image captured successfully, upload to API
+            isUploading = true
+            resultMessage = null
+            
+            coroutineScope.launch {
+                // Get API key from BuildConfig (placeholder for now)
+                val apiKey = com.cs407.lineup.BuildConfig.MAPS_API_KEY // Replace with actual RunPod API key
+                val result = waitTimeRepository.uploadImage(imageFile, apiKey)
+                
+                isUploading = false
+                
+                if (result.isSuccess) {
+                    resultMessage = "Wait Time: ${result.waitTimeMinutes} min (${(result.confidence!! * 100).toInt()}% confident)"
+                } else {
+                    resultMessage = result.errorMessage ?: "Unknown error"
+                }
+            }
+        } else {
+            Toast.makeText(context, "Image capture cancelled", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    // Permission launcher
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            cameraLauncher.launch(imageUri)
+        } else {
+            Toast.makeText(context, "Camera permission required", Toast.LENGTH_SHORT).show()
+        }
+    }
+    
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Button(
+            onClick = {
+                // Check camera permission
+                when {
+                    androidx.core.content.ContextCompat.checkSelfPermission(
+                        context,
+                        android.Manifest.permission.CAMERA
+                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED -> {
+                        cameraLauncher.launch(imageUri)
+                    }
+                    else -> {
+                        permissionLauncher.launch(android.Manifest.permission.CAMERA)
+                    }
+                }
+            },
+            enabled = !isUploading,
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3)),
+            modifier = Modifier
+                .fillMaxWidth(0.7f)
+                .height(50.dp),
+            shape = RoundedCornerShape(25.dp)
+        ) {
+            Text(
+                text = if (isUploading) "UPLOADING..." else "CAPTURE LINE",
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        
+        // Display result message
+        resultMessage?.let { message ->
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = message,
+                fontSize = 14.sp,
+                color = if (message.contains("Wait Time")) Color(0xFF1B5E20) else Color.Red,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
+    }
+}
