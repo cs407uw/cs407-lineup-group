@@ -92,8 +92,9 @@ fun HomeScreen(
     val locationViewModel: LocationViewModel = viewModel()
     val userLocation by locationViewModel.location.collectAsState()
 
-    // variable for fetching nearby restaurants
+    // variable for fetching nearby restaurants and restaurants within user's map frame, respectively:
     var nearbyRestaurants by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
+    var sortedRestaurants by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
 
     // permissions launcher that requests fine and coarse location
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -118,6 +119,22 @@ fun HomeScreen(
             nearbyRestaurants = results
         }
     }
+
+    // if the camera pos changes, update the sorted restaurants list to include the restaurants in view
+    LaunchedEffect(cameraPositionState.isMoving) {
+        if (!cameraPositionState.isMoving) {
+            // get bounds to determine if in view or out of view
+            val projection = cameraPositionState.projection ?: return@LaunchedEffect
+            val visibleRegion = projection.visibleRegion
+            val bounds = visibleRegion.latLngBounds
+
+            val inView = nearbyRestaurants.filter { bounds.contains(it.latLng) }
+            val outOfView = nearbyRestaurants.filter { !bounds.contains(it.latLng) }
+
+            sortedRestaurants = inView + outOfView
+        }
+    }
+
 
     // map animation that gets triggered whenever use location updates
     LaunchedEffect(userLocation) {
@@ -415,13 +432,16 @@ fun HomeScreen(
 
                 // the actual list within the bottom sheet; includes the restaurants w/ filtering applied
                 RestaurantListSheet(
-                    // launch a coroutine in GlobalScope so it lives throughout lifetime of app to update widget
-                    // when a restaurant is clicked on
-                    restaurants = nearbyRestaurants, onItemClick = { r ->
+                    // set restaurants to sorted restaurants (i.e. the restaurants in the current frame of the map
+                    // that the user scrolled to; otherwise, show all nearby restaurants
+                    restaurants = sortedRestaurants.ifEmpty { nearbyRestaurants }
+                    , onItemClick = { r ->
                         selected = r
                         RestaurantPrefs.saveRestaurant(
                             context, r.name, r.waitTimeMinutes, r.color.value.toInt()
                         )
+                        // launch a coroutine in GlobalScope so it lives throughout lifetime of app to update widget
+                        // when a restaurant is clicked on
                         GlobalScope.launch {
                             LastRestaurantWidget().updateAll(context)
                         }

@@ -41,10 +41,6 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/home_screen_widget" />
         </receiver>
-        <receiver
-            android:name=".widget.WidgetUpdateReceiver"
-            android:exported="false" />
-
 
     </application>
 </manifest>
