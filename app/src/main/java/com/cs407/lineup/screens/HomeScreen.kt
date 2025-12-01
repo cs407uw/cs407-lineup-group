@@ -92,8 +92,18 @@ fun HomeScreen(
     val locationViewModel: LocationViewModel = viewModel()
     val userLocation by locationViewModel.location.collectAsState()
 
-    // variable for fetching nearby restaurants
+    // variable for fetching nearby restaurants and restaurants within user's map frame, respectively:
     var nearbyRestaurants by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
+    var sortedRestaurants by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
+
+    // sorting option state
+    var sortOption by remember { mutableStateOf("Distance") }
+
+    fun distanceMeters(a: LatLng, b: LatLng): Double {
+        val arr = FloatArray(1)
+        android.location.Location.distanceBetween(a.latitude, a.longitude, b.latitude, b.longitude, arr)
+        return arr[0].toDouble()
+    }
 
     // permissions launcher that requests fine and coarse location
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -103,7 +113,6 @@ fun HomeScreen(
             locationViewModel.startLocationUpdates()
         }
     }
-
     // when the user location changes, fetch nearby restaurants and store results in a state to update ui
     LaunchedEffect(userLocation) {
         if (userLocation != null) {
@@ -114,7 +123,6 @@ fun HomeScreen(
                 lng = userLocation!!.longitude,
                 apiKey = BuildConfig.MAPS_API_KEY
             )
-
             nearbyRestaurants = results
         }
     }
@@ -125,18 +133,6 @@ fun HomeScreen(
             cameraPositionState.animate(
                 CameraUpdateFactory.newLatLngZoom(it, 15f), durationMs = 600
             )
-        }
-    }
-
-    // map animation when user selects a restaurant (also used for updating homescreen widget)
-    LaunchedEffect(selected) {
-        selected?.let {
-            cameraPositionState.animate(
-                CameraUpdateFactory.newLatLngZoom(it.latLng, 15f), durationMs = 600
-            )
-            GlobalScope.launch {
-                LastRestaurantWidget().updateAll(context)
-            }
         }
     }
 
@@ -156,6 +152,33 @@ fun HomeScreen(
         home = savedProfile.home
         work = savedProfile.work
         favoriteCategories = savedProfile.favoriteCategories
+    }
+
+    // launched effect triggered when user changes sort option, moves map, or
+    // restaurants update. updates to the properly sorted restaurants list
+    LaunchedEffect(sortOption, nearbyRestaurants, userLocation, cameraPositionState.isMoving) {
+        val baseSorted =
+            when (sortOption) {
+                "Wait Time" -> nearbyRestaurants.sortedBy { it.waitTimeMinutes }
+                "Rating" -> nearbyRestaurants.sortedByDescending { it.rating ?: 0.0 }
+                "Price" -> nearbyRestaurants.sortedBy { it.priceLevel ?: Int.MAX_VALUE }
+                "Distance" ->
+                    if (userLocation != null)
+                        nearbyRestaurants.sortedBy { distanceMeters(userLocation!!, it.latLng) }
+                    else nearbyRestaurants
+                else -> nearbyRestaurants
+            }
+
+        val projection = cameraPositionState.projection
+        val finalSorted =
+            if (!cameraPositionState.isMoving && projection != null) {
+                val bounds = projection.visibleRegion.latLngBounds
+                val inView = baseSorted.filter { bounds.contains(it.latLng) }
+                val outView = baseSorted.filter { !bounds.contains(it.latLng) }
+                inView + outView
+            } else baseSorted
+
+        sortedRestaurants = finalSorted
     }
 
     Box(
@@ -178,7 +201,6 @@ fun HomeScreen(
                     icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
                 )
             }
-
             // draw all nearby restaurants w/ red marker
             nearbyRestaurants.forEach { restaurant ->
                 Marker(
@@ -187,14 +209,12 @@ fun HomeScreen(
                     icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
                 )
             }
-
             // highlight marker for the currently selected restaurant
             selected?.let { restaurant ->
                 Marker(
                     state = MarkerState(position = restaurant.latLng), title = restaurant.name
                 )
             }
-
         }
 
         // profile button
@@ -415,27 +435,31 @@ fun HomeScreen(
 
                 // the actual list within the bottom sheet; includes the restaurants w/ filtering applied
                 RestaurantListSheet(
-                    // launch a coroutine in GlobalScope so it lives throughout lifetime of app to update widget
-                    // when a restaurant is clicked on
-                    restaurants = nearbyRestaurants, onItemClick = { r ->
+                    restaurants = sortedRestaurants.ifEmpty { nearbyRestaurants },
+                    sortOption = sortOption,
+                    onSortChange = { sortOption = it },
+                    onItemClick = { r ->
                         selected = r
                         RestaurantPrefs.saveRestaurant(
-                            context, r.name, r.waitTimeMinutes, r.color.value.toInt()
+                            context,
+                            r.name,
+                            r.waitTimeMinutes,
+                            r.color.value.toInt()
                         )
                         GlobalScope.launch {
                             LastRestaurantWidget().updateAll(context)
                         }
                         onRestaurantClick(r)
                     },
-                    // automatically highlight the first restaurant when user changes the filter category
-                    // this is so that we can display the first one in the list on the map by default
-                    onCategoryChangeFirst = { first -> first?.let { selected = it } }, onClose = {
+                    onCategoryChangeFirst = { first -> first?.let { selected = it } },
+                    onClose = {
                         scope.launch { sheetState.hide() }.invokeOnCompletion {
                             showSheet = false
                         }
                     },
                     favoriteCategories = favoriteCategories
                 )
+
             }
         } else {
             // when the sheet is closed, show a small draggable bar at the bottom
@@ -470,124 +494,196 @@ fun HomeScreen(
 @Composable
 fun RestaurantListSheet(
     restaurants: List<Restaurant>,
+    sortOption: String,
+    onSortChange: (String) -> Unit,
     onItemClick: (Restaurant) -> Unit,
     onCategoryChangeFirst: (Restaurant?) -> Unit,
     onClose: () -> Unit,
     favoriteCategories: Set<String> = emptySet()
 ) {
-    // label for dropdown & all the categories
-    val allLabel = stringResource(R.string.category_all)
+    // state for opening filter modal w/ categories & sorting
+    var showFilterSheet by remember { mutableStateOf(false) }
 
-    // determine initial category based on favorites
-    val initialCategory = when {
-        favoriteCategories.isEmpty() -> allLabel
-        favoriteCategories.size == 1 -> favoriteCategories.first()
-        else -> allLabel // multiple favorites, show all
+    // label for dropdown & all the categories
+    val allLabel = "All Establishments"
+
+    // if user has favorites, use them initially, otherwise show all
+    var selectedCategories by remember {
+        mutableStateOf(
+            if (favoriteCategories.isEmpty()) setOf(allLabel)
+            else favoriteCategories
+        )
     }
 
-    var selectedCategory by remember { mutableStateOf(initialCategory) }
 
-    val categories = listOf(
-        stringResource(R.string.category_all),
-        "Restaurant",
-        "Bar",
-        "Cafe",
-        "Grocery"
-    )
-
-    // variables for expanded and filter to remember their respective states
-    var expanded by remember { mutableStateOf(false) }
-
-    val filtered by remember(selectedCategory, restaurants) {
+    // all category options to display and choose from in modal
+    val categories = listOf(allLabel, "Restaurant", "Bar", "Cafe", "Grocery")
+    // filtering logic: apply the selected categories
+    val filtered by remember(selectedCategories, restaurants) {
         derivedStateOf {
-            if (selectedCategory == allLabel) restaurants
-            else restaurants.filter { it.type == selectedCategory }
+            if (selectedCategories.contains(allLabel)) {
+                restaurants
+            } else {
+                restaurants.filter { r ->
+                    r.type in selectedCategories
+                }
+            }
         }
     }
 
     // when selected category is changed, refilter and update first restaurant to be highlighted on map
-    LaunchedEffect(selectedCategory) {
+    LaunchedEffect(selectedCategories) {
         onCategoryChangeFirst(filtered.firstOrNull())
     }
 
     Column {
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded },
+        // filter button that opens the modal
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(16.dp)
+                .clip(RoundedCornerShape(50))
+                .background(Color(0xFF1B5E20))
+                .clickable { showFilterSheet = true },
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .menuAnchor() // anchor the dropdown to this element
-                    .clip(RoundedCornerShape(50))
-                    .background(Color(0xFF1B5E20))
-                    .padding(vertical = 8.dp, horizontal = 16.dp)
-                    .fillMaxWidth(),
-                contentAlignment = Alignment.CenterStart
+            // show the currently selected category text in the dropdown menu title
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(vertical = 10.dp, horizontal = 20.dp)
             ) {
-                // show the currently selected category text in the dropdown menu title
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        modifier = Modifier.fillMaxWidth(),
-                        text = selectedCategory,
-                        color = Color.White,
-                        textAlign = TextAlign.Center,
-                        fontSize = 22.sp,
-                        fontFamily = monaspace,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.CenterEnd
-                ) {
-                    Icon(
-                        imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Dropdown arrow",
-                        tint = Color.White
-                    )
-                }
+                Text(
+                    text = "Filters",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontFamily = monaspace,
+                    fontWeight = FontWeight.Bold
+                )
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = Color.White
+                )
             }
+        }
 
-            // the dropdown list of categories
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier
-                    .background(Color(0xFF1B5E20))
-                    .clip(RoundedCornerShape(12.dp))
+        // filter modal bottom sheet (contains sorting section, category selection, and apply button)
+        if (showFilterSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showFilterSheet = false },
+                containerColor = Color.White,
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             ) {
-                // add each category option available
-                categories.forEach { category ->
-                    DropdownMenuItem(
-                        text = {
-                            Box(
-                                modifier = Modifier.fillMaxWidth(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = category,
-                                    color = Color.White,
-                                    fontSize = 20.sp,
-                                    fontFamily = monaspace,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        },
-                        onClick = {
-                            // if one is clicked, update the selected category
-                            selectedCategory = category
-                            expanded = false
-                        }
-
-
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        text = "Sort By",
+                        fontFamily = monaspace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
                     )
+                    Spacer(Modifier.height(12.dp))
+
+                    val sortOptions = listOf("Distance", "Wait Time", "Rating", "Price")
+
+                    sortOptions.forEach { option ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable { onSortChange(option) },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = (sortOption == option),
+                                onClick = { onSortChange(option) }
+                            )
+                            Text(
+                                text = option,
+                                fontFamily = ubuntu,
+                                fontSize = 18.sp,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(24.dp))
+
+                    Text(
+                        text = "Categories",
+                        fontFamily = monaspace,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+
+                    categories.forEach { cat ->
+
+                        val isSelected = selectedCategories.contains(cat)
+
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable {
+                                    selectedCategories =
+                                        if (cat == allLabel) { // reset all filters
+                                            setOf(allLabel)
+                                        } else if (isSelected) { // unselect the specific category
+                                            selectedCategories - cat
+                                        } else {
+                                            (selectedCategories + cat) - allLabel
+                                        }
+                                },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+
+                            Checkbox(
+                                checked = isSelected,
+                                onCheckedChange = { checked ->
+                                    selectedCategories =
+                                        if (checked) {
+                                            if (cat == allLabel) setOf(allLabel)
+                                            else (selectedCategories + cat) - allLabel
+                                        } else {
+                                            selectedCategories - cat
+                                        }
+                                },
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = Color(0xFF1B5E20),
+                                    uncheckedColor = Color.Gray
+                                )
+                            )
+
+                            Text(
+                                text = cat,
+                                fontFamily = ubuntu,
+                                fontSize = 18.sp,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(24.dp))
+
+                    // apply button to apply filters (sorting happens in HomeScreen)
+                    Button(
+                        onClick = {
+                            onCategoryChangeFirst(filtered.firstOrNull())
+                            showFilterSheet = false
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF1B5E20)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Apply", color = Color.White, fontFamily = monaspace)
+                    }
+
+                    Spacer(Modifier.height(20.dp))
                 }
             }
         }
@@ -602,9 +698,8 @@ fun RestaurantListSheet(
             ) {
                 CircularProgressIndicator(color = Color(0xFF1B5E20))
             }
-            return
+            return@Column
         }
-
         // list of restaurants (once loaded)
         LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
             itemsIndexed(filtered) { index, restaurant ->
@@ -614,7 +709,6 @@ fun RestaurantListSheet(
         }
     }
 }
-
 
 /**
  * a single restaurant list item
@@ -682,4 +776,3 @@ fun RestaurantListItem(restaurant: Restaurant, index: Int, onClick: () -> Unit) 
         }
     }
 }
-
