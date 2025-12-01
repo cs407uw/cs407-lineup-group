@@ -113,7 +113,6 @@ fun HomeScreen(
             locationViewModel.startLocationUpdates()
         }
     }
-
     // when the user location changes, fetch nearby restaurants and store results in a state to update ui
     LaunchedEffect(userLocation) {
         if (userLocation != null) {
@@ -124,7 +123,6 @@ fun HomeScreen(
                 lng = userLocation!!.longitude,
                 apiKey = BuildConfig.MAPS_API_KEY
             )
-
             nearbyRestaurants = results
         }
     }
