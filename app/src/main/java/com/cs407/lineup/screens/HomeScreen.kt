@@ -153,18 +153,6 @@ fun HomeScreen(
         }
     }
 
-    // map animation when user selects a restaurant (also used for updating homescreen widget)
-    LaunchedEffect(selected) {
-        selected?.let {
-            cameraPositionState.animate(
-                CameraUpdateFactory.newLatLngZoom(it.latLng, 15f), durationMs = 600
-            )
-            GlobalScope.launch {
-                LastRestaurantWidget().updateAll(context)
-            }
-        }
-    }
-
     // ask for location permissions as soon as the screen is visible
     LaunchedEffect(true) {
         permissionLauncher.launch(
