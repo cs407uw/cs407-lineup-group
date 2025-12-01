@@ -71,7 +71,7 @@ fun RestaurantListSheet(
     // if user has favorites, use them initially, otherwise show all
     var selectedCategories by remember {
         mutableStateOf(
-            if (favoriteCategories.isEmpty()) emptySet()
+            if (favoriteCategories.isEmpty()) setOf(allLabel)
             else favoriteCategories
         )
     }
@@ -81,20 +81,20 @@ fun RestaurantListSheet(
     // filtering logic: apply the selected categories
     val filtered by remember(selectedCategories, restaurants) {
         derivedStateOf {
-            if (selectedCategories.isEmpty()) {
+            if (selectedCategories.contains(allLabel)) {
                 restaurants
             } else {
                 restaurants.filter { r ->
-                    r.type in selectedCategories
+                    r.types.any { it in selectedCategories }
                 }
             }
         }
     }
 
     // when selected category is changed, refilter and update first restaurant to be highlighted on map
-    LaunchedEffect(selectedCategories) {
-        onCategoryChangeFirst(filtered.firstOrNull())
-    }
+    //LaunchedEffect(selectedCategories) {
+    //    onCategoryChangeFirst(filtered.firstOrNull())
+    //}
 
     Column {
         // filter button that opens the modal
@@ -187,12 +187,15 @@ fun RestaurantListSheet(
                                 .padding(vertical = 4.dp)
                                 .clickable {
                                     selectedCategories =
-                                        if (cat == allLabel) { // reset all filters
-                                            emptySet()
-                                        } else if (isSelected) { // unselect the specific category
-                                            selectedCategories - cat
+                                        if (cat == allLabel) {
+                                            setOf(allLabel)
                                         } else {
-                                            (selectedCategories + cat) - allLabel
+                                            val newSet = if (selectedCategories.contains(cat)) {
+                                                selectedCategories - cat
+                                            } else {
+                                                (selectedCategories - allLabel) + cat
+                                            }
+                                            if (newSet.isEmpty()) setOf(allLabel) else newSet
                                         }
                                 },
                             verticalAlignment = Alignment.CenterVertically
@@ -203,7 +206,7 @@ fun RestaurantListSheet(
                                 onCheckedChange = { checked ->
                                     selectedCategories =
                                         if (checked) {
-                                            if (cat == allLabel) emptySet()
+                                            if (cat == allLabel) setOf(allLabel)
                                             else (selectedCategories + cat) - allLabel
                                         } else {
                                             selectedCategories - cat
