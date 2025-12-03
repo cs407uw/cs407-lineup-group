@@ -1,28 +1,69 @@
 package com.cs407.lineup.screens
 
 import NearbySearchRepository
-import android.util.Log
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -30,9 +71,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.glance.appwidget.updateAll
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.cs407.lineup.BuildConfig
 import com.cs407.lineup.R
+import com.cs407.lineup.data.LocationHelper
+import com.cs407.lineup.data.LocationViewModel
+import com.cs407.lineup.data.ProfilePrefs
 import com.cs407.lineup.data.Restaurant
+import com.cs407.lineup.data.RestaurantPrefs
+import com.cs407.lineup.widget.LastRestaurantWidget
 import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.CameraPositionState
@@ -40,20 +91,8 @@ import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.rememberCameraPositionState
-import kotlinx.coroutines.launch
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import android.Manifest
-import androidx.compose.ui.platform.LocalContext
-import androidx.glance.appwidget.updateAll
-import com.cs407.lineup.BuildConfig
-import com.cs407.lineup.data.LocationViewModel
-import com.cs407.lineup.data.RestaurantPrefs
-import com.cs407.lineup.data.ProfilePrefs
-import com.cs407.lineup.widget.LastRestaurantWidget
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 
 val ubuntu = FontFamily(Font(R.font.ubuntu))
 val monaspace = FontFamily(Font(R.font.monaspace_neon))
@@ -68,6 +107,14 @@ fun HomeScreen(
     modifier: Modifier = Modifier, onRestaurantClick: (Restaurant) -> Unit
 ) {
     val context = LocalContext.current
+    var hasLocationPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
 
     // variables for bottom sheet scope & state
     val scope = rememberCoroutineScope()
@@ -90,11 +137,23 @@ fun HomeScreen(
         position = CameraPosition.fromLatLngZoom(initial, 13f)
     }
     val locationViewModel: LocationViewModel = viewModel()
-    val userLocation by locationViewModel.location.collectAsState()
+    //val userLocation by locationViewModel.location.collectAsState()
+    val gpsLocation by locationViewModel.location.collectAsState()
 
     // variable for fetching nearby restaurants and restaurants within user's map frame, respectively:
     var nearbyRestaurants by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
     var sortedRestaurants by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
+
+
+    // Manual location input
+    val locationHelper = remember { LocationHelper(context) }
+    val isManualMode by locationHelper.isManualMode.collectAsState()
+    val manualLocation by locationHelper.manualLocation.collectAsState()
+
+    // NEW: Compute the effective location (manual overrides GPS)
+    val userLocation = remember(gpsLocation, manualLocation, isManualMode) {
+        locationHelper.getEffectiveLocation(gpsLocation)
+    }
 
     // sorting option state
     var sortOption by remember { mutableStateOf("Distance") }
@@ -107,9 +166,10 @@ fun HomeScreen(
 
     // permissions launcher that requests fine and coarse location
     val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
     ) { perms ->
         if (perms[Manifest.permission.ACCESS_FINE_LOCATION] == true) {
+            hasLocationPermission = true
             locationViewModel.startLocationUpdates()
         }
     }
@@ -142,7 +202,7 @@ fun HomeScreen(
         }
     }
 
-    // map animation that gets triggered whenever use location updates
+    // map animation that gets triggered whenever userLocation updates
     LaunchedEffect(userLocation) {
         userLocation?.let {
             cameraPositionState.animate(
@@ -155,7 +215,8 @@ fun HomeScreen(
     LaunchedEffect(true) {
         permissionLauncher.launch(
             arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
             )
         )
     }
@@ -208,34 +269,45 @@ fun HomeScreen(
             .fillMaxSize()
             .background(Color.White)
     ) {
-        // main google map UI; bottom padding shrinks the map when the sheet is open
-        GoogleMap(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = if (showSheet) 220.dp else 0.dp),
-            cameraPositionState = cameraPositionState
-        ) {
-            // create marker for user's current location (blue)
-            userLocation?.let { loc ->
-                Marker(
-                    state = MarkerState(position = loc),
-                    title = "You",
-                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
-                )
+        if (hasLocationPermission) {
+            // main google map UI; bottom padding shrinks the map when the sheet is open
+            GoogleMap(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(bottom = if (showSheet) 220.dp else 0.dp),
+                cameraPositionState = cameraPositionState
+            ) {
+                // create marker for user's current location (blue)
+                userLocation?.let { loc ->
+                    Marker(
+                        state = MarkerState(position = loc),
+                        title = "You",
+                        icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
+                    )
+                }
+                // draw all nearby restaurants w/ red marker
+                nearbyRestaurants.forEach { restaurant ->
+                    Marker(
+                        state = MarkerState(position = restaurant.latLng),
+                        title = restaurant.name,
+                        icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
+                    )
+                }
+                // highlight marker for the currently selected restaurant
+                selected?.let { restaurant ->
+                    Marker(
+                        state = MarkerState(position = restaurant.latLng), title = restaurant.name
+                    )
+                }
             }
-            // draw all nearby restaurants w/ red marker
-            nearbyRestaurants.forEach { restaurant ->
-                Marker(
-                    state = MarkerState(position = restaurant.latLng),
-                    title = restaurant.name,
-                    icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
-                )
-            }
-            // highlight marker for the currently selected restaurant
-            selected?.let { restaurant ->
-                Marker(
-                    state = MarkerState(position = restaurant.latLng), title = restaurant.name
-                )
+        } else {
+            // Show a message or a loading indicator while waiting for permission
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text("Requesting location permission...")
             }
         }
 
@@ -266,8 +338,7 @@ fun HomeScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.6f))
-                    // close profile settings when clicked outside of the menu
+                    .background(Color.Black.copy(alpha = 0.6f))// close profile settings when clicked outside of the menu
                     .clickable { showProfileCard = false }, contentAlignment = Alignment.Center
             ) {
                 ElevatedCard(
@@ -293,62 +364,120 @@ fun HomeScreen(
                             fontWeight = FontWeight.Bold
                         )
 
-                        OutlinedTextField(
-                            value = name,
-                            onValueChange = { name = it },
-                            label = { Text(stringResource(R.string.name)) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.AccountCircle, contentDescription = null
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        //Manual Location Icons
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            //Home Icon for Manual location
+                            OutlinedTextField(
+                                value = home,
+                                onValueChange = { home = it },
+                                label = { Text(stringResource(R.string.home)) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(vertical = 8.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                leadingIcon = { Icon(Icons.Default.Home, contentDescription = null) },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF1B5E20),
+                                    unfocusedBorderColor = Color.LightGray,
+                                    focusedLabelColor = Color(0xFF1B5E20),
+                                    cursorColor = Color(0xFF1B5E20)
                                 )
-                            },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF1B5E20),
-                                unfocusedBorderColor = Color.LightGray,
-                                focusedLabelColor = Color(0xFF1B5E20),
-                                cursorColor = Color(0xFF1B5E20)
                             )
-                        )
 
-                        OutlinedTextField(
-                            value = home,
-                            onValueChange = { home = it },
-                            label = { Text(stringResource(R.string.home)) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            leadingIcon = { Icon(Icons.Default.Home, contentDescription = null) },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF1B5E20),
-                                unfocusedBorderColor = Color.LightGray,
-                                focusedLabelColor = Color(0xFF1B5E20),
-                                cursorColor = Color(0xFF1B5E20)
+                            // Icon button to set location to home
+                            IconButton(
+                                onClick = {
+                                    if (home.isNotBlank()) {
+                                        locationHelper.setManualLocation(home, scope)
+                                        showProfileCard = false
+                                    }
+                                },
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .size(40.dp)
+                                    .background(Color(0xFF1B5E20), shape = CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Place,
+                                    contentDescription = "Go to Home",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            //Work address for manual
+                            OutlinedTextField(
+                                value = work,
+                                onValueChange = { work = it },
+                                label = { Text(stringResource(R.string.work)) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(vertical = 8.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Email,
+                                        contentDescription = null
+                                    )
+                                },
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = Color(0xFF1B5E20),
+                                    unfocusedBorderColor = Color.LightGray,
+                                    focusedLabelColor = Color(0xFF1B5E20),
+                                    cursorColor = Color(0xFF1B5E20)
+                                )
                             )
-                        )
+                            IconButton(
+                                onClick = {
+                                    if (work.isNotBlank()) {
+                                        locationHelper.setManualLocation(work, scope)
+                                        showProfileCard = false
+                                    }
+                                },
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .size(40.dp)
+                                    .background(Color(0xFF1B5E20), shape = CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Email,
+                                    contentDescription = "Go to Work",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                        if (isManualMode) {
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                        OutlinedTextField(
-                            value = work,
-                            onValueChange = { work = it },
-                            label = { Text(stringResource(R.string.work)) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            leadingIcon = { Icon(Icons.Default.Place, contentDescription = null) },
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF1B5E20),
-                                unfocusedBorderColor = Color.LightGray,
-                                focusedLabelColor = Color(0xFF1B5E20),
-                                cursorColor = Color(0xFF1B5E20)
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = {
+                                    locationHelper.useCurrentLocation()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF2E7D32)
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Place,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Use Current Location", color = Color.White, fontFamily = ubuntu)
+                            }
+                        }
 
                         // favorite categories section
                         Text(
@@ -368,11 +497,12 @@ fun HomeScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable {
-                                        favoriteCategories = if (favoriteCategories.contains(category)) {
-                                            favoriteCategories - category
-                                        } else {
-                                            favoriteCategories + category
-                                        }
+                                        favoriteCategories =
+                                            if (favoriteCategories.contains(category)) {
+                                                favoriteCategories - category
+                                            } else {
+                                                favoriteCategories + category
+                                            }
                                     }
                                     .padding(vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -407,7 +537,13 @@ fun HomeScreen(
                         ) {
                             Button(
                                 onClick = {
-                                    ProfilePrefs.saveProfile(context, name, home, work, favoriteCategories)
+                                    ProfilePrefs.saveProfile(
+                                        context,
+                                        name,
+                                        home,
+                                        work,
+                                        favoriteCategories
+                                    )
                                     showProfileCard = false
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1B5E20)),

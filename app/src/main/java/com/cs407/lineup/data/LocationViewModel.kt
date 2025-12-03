@@ -1,7 +1,10 @@
 package com.cs407.lineup.data
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Application
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
@@ -18,10 +21,9 @@ import kotlinx.coroutines.flow.asStateFlow
  * View model responsible for handling live user location updates; uses google fused location
  * provider.
  */
-class LocationViewModel(application: Application) : AndroidViewModel(application) {
+class LocationViewModel(private val application: Application) : AndroidViewModel(application) {
 
-    private val fusedClient: FusedLocationProviderClient =
-        LocationServices.getFusedLocationProviderClient(application)
+    private lateinit var fusedClient: FusedLocationProviderClient
 
     private val _location = MutableStateFlow<LatLng?>(null)
     val location: StateFlow<LatLng?> = _location.asStateFlow()
@@ -44,6 +46,15 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
     // launch the location udpate request process; utilizes the callback above
     @SuppressLint("MissingPermission")
     fun startLocationUpdates() {
-        fusedClient.requestLocationUpdates(locationRequest, callback, null)
+        if (ContextCompat.checkSelfPermission(
+                application,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            fusedClient = LocationServices.getFusedLocationProviderClient(application)
+            fusedClient.requestLocationUpdates(locationRequest, callback, null)
+        }
     }
+
+
 }
