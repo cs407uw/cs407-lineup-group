@@ -127,6 +127,21 @@ fun HomeScreen(
         }
     }
 
+    // if the camera pos changes, update the sorted restaurants list to include the restaurants in view
+    LaunchedEffect(cameraPositionState.isMoving) {
+        if (!cameraPositionState.isMoving) {
+            // get bounds to determine if in view or out of view
+            val projection = cameraPositionState.projection ?: return@LaunchedEffect
+            val visibleRegion = projection.visibleRegion
+            val bounds = visibleRegion.latLngBounds
+
+            val inView = nearbyRestaurants.filter { bounds.contains(it.latLng) }
+            val outOfView = nearbyRestaurants.filter { !bounds.contains(it.latLng) }
+
+            sortedRestaurants = inView + outOfView
+        }
+    }
+
     // map animation that gets triggered whenever use location updates
     LaunchedEffect(userLocation) {
         userLocation?.let {
@@ -156,29 +171,36 @@ fun HomeScreen(
 
     // launched effect triggered when user changes sort option, moves map, or
     // restaurants update. updates to the properly sorted restaurants list
-    LaunchedEffect(sortOption, nearbyRestaurants, userLocation, cameraPositionState.isMoving) {
-        val baseSorted =
-            when (sortOption) {
-                "Wait Time" -> nearbyRestaurants.sortedBy { it.waitTimeMinutes }
-                "Rating" -> nearbyRestaurants.sortedByDescending { it.rating ?: 0.0 }
-                "Price" -> nearbyRestaurants.sortedBy { it.priceLevel ?: Int.MAX_VALUE }
-                "Distance" ->
-                    if (userLocation != null)
-                        nearbyRestaurants.sortedBy { distanceMeters(userLocation!!, it.latLng) }
-                    else nearbyRestaurants
-                else -> nearbyRestaurants
+    LaunchedEffect(sortOption, nearbyRestaurants, userLocation) {
+        if (nearbyRestaurants.isEmpty()) return@LaunchedEffect
+        // sort restaurants based on selected option
+        val sorted = when (sortOption) {
+            "Wait Time" -> nearbyRestaurants.sortedBy { it.waitTimeMinutes }
+            "Rating" -> nearbyRestaurants.sortedByDescending { it.rating ?: 0.0 }
+            "Price" -> nearbyRestaurants.sortedBy { it.priceLevel ?: Int.MAX_VALUE }
+            "Distance" -> {
+                if (userLocation != null) {
+                    nearbyRestaurants.sortedBy {
+                        distanceMeters(userLocation!!, it.latLng)
+                    }
+                } else nearbyRestaurants
             }
+            else -> nearbyRestaurants
+        }
+        sortedRestaurants = sorted
+    }
 
-        val projection = cameraPositionState.projection
-        val finalSorted =
-            if (!cameraPositionState.isMoving && projection != null) {
-                val bounds = projection.visibleRegion.latLngBounds
-                val inView = baseSorted.filter { bounds.contains(it.latLng) }
-                val outView = baseSorted.filter { !bounds.contains(it.latLng) }
-                inView + outView
-            } else baseSorted
+    // reorder restaurant lists so restaurants currently visible appear first in the list
+    LaunchedEffect(cameraPositionState.isMoving) {
+        if (!cameraPositionState.isMoving) {
+            val projection = cameraPositionState.projection ?: return@LaunchedEffect
+            val bounds = projection.visibleRegion.latLngBounds
 
-        sortedRestaurants = finalSorted
+            val inView = sortedRestaurants.filter { bounds.contains(it.latLng) }
+            val outView = sortedRestaurants.filter { !bounds.contains(it.latLng) }
+
+            sortedRestaurants = inView + outView
+        }
     }
 
     Box(
@@ -510,18 +532,17 @@ fun RestaurantListSheet(
     // if user has favorites, use them initially, otherwise show all
     var selectedCategories by remember {
         mutableStateOf(
-            if (favoriteCategories.isEmpty()) setOf(allLabel)
+            if (favoriteCategories.isEmpty()) emptySet()
             else favoriteCategories
         )
     }
-
 
     // all category options to display and choose from in modal
     val categories = listOf(allLabel, "Restaurant", "Bar", "Cafe", "Grocery")
     // filtering logic: apply the selected categories
     val filtered by remember(selectedCategories, restaurants) {
         derivedStateOf {
-            if (selectedCategories.contains(allLabel)) {
+            if (selectedCategories.isEmpty()) {
                 restaurants
             } else {
                 restaurants.filter { r ->
@@ -628,7 +649,7 @@ fun RestaurantListSheet(
                                 .clickable {
                                     selectedCategories =
                                         if (cat == allLabel) { // reset all filters
-                                            setOf(allLabel)
+                                            emptySet()
                                         } else if (isSelected) { // unselect the specific category
                                             selectedCategories - cat
                                         } else {
@@ -643,7 +664,7 @@ fun RestaurantListSheet(
                                 onCheckedChange = { checked ->
                                     selectedCategories =
                                         if (checked) {
-                                            if (cat == allLabel) setOf(allLabel)
+                                            if (cat == allLabel) emptySet()
                                             else (selectedCategories + cat) - allLabel
                                         } else {
                                             selectedCategories - cat
