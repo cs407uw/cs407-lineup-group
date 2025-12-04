@@ -74,6 +74,7 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-analytics-ktx")
+    implementation("com.google.firebase:firebase-config-ktx")
     
     // Existing dependencies
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
