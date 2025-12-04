@@ -7,6 +7,7 @@ import com.google.android.gms.maps.model.LatLng
  * restaurant data class to represent restaurants fetched from the google places api
  */
 data class Restaurant(
+    val id: String,
     val name: String,
     val description: String,
     val waitTimeMinutes: Int,

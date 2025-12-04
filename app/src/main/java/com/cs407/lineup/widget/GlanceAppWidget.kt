@@ -16,6 +16,7 @@ import androidx.glance.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import com.cs407.lineup.MainActivity
 import com.cs407.lineup.R
+import com.cs407.lineup.data.FavoritePrefs
 import com.cs407.lineup.data.RestaurantPrefs
 import androidx.glance.layout.*
 import androidx.glance.text.Text
@@ -28,10 +29,13 @@ class LastRestaurantWidget : GlanceAppWidget() {
 
     @SuppressLint("RestrictedApi")
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val data = RestaurantPrefs.loadRestaurant(context)
+        // Try to load last viewed favorite first, fall back to last viewed restaurant
+        val favoriteData = FavoritePrefs.getLastViewedFavorite(context)
+        val data = if (favoriteData.name != null) favoriteData else RestaurantPrefs.loadRestaurant(context)
 
         val name = data.name ?: "No restaurant selected"
         val wait = data.wait ?: 0
+        val isFavorite = favoriteData.name != null
 
         provideContent {
 
@@ -41,12 +45,24 @@ class LastRestaurantWidget : GlanceAppWidget() {
                 verticalAlignment = Alignment.Vertical.CenterVertically,
             ) {
 
-                Text(
-                    text = name, style = TextStyle(
-                        fontSize = 20.sp,
-                        fontFamily = FontFamily.Monospace,
+                Row(
+                    verticalAlignment = Alignment.Vertical.CenterVertically
+                ) {
+                    Text(
+                        text = name, style = TextStyle(
+                            fontSize = 20.sp,
+                            fontFamily = FontFamily.Monospace,
+                        )
                     )
-                )
+                    if (isFavorite) {
+                        Spacer(GlanceModifier.width(6.dp))
+                        Text(
+                            text = "⭐", style = TextStyle(
+                                fontSize = 18.sp
+                            )
+                        )
+                    }
+                }
 
                 Spacer(GlanceModifier.height(8.dp))
 

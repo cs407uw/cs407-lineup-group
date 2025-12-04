@@ -85,3 +85,73 @@ object ProfilePrefs {
         )
     }
 }
+
+/**
+ * SharedPreferences helper object to store and retrieve favorited restaurants
+ */
+object FavoritePrefs {
+    private const val PREFS = "favorite_prefs"
+    private const val KEY_FAVORITES = "favorite_ids"
+    private const val KEY_LAST_FAVORITE_NAME = "last_favorite_name"
+    private const val KEY_LAST_FAVORITE_WAIT = "last_favorite_wait"
+    private const val KEY_LAST_FAVORITE_COLOR = "last_favorite_color"
+
+    /**
+     * Add a restaurant to favorites by its place_id
+     */
+    fun addFavorite(context: Context, placeId: String) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val favorites = getFavorites(context).toMutableSet()
+        favorites.add(placeId)
+        prefs.edit().putStringSet(KEY_FAVORITES, favorites).apply()
+    }
+
+    /**
+     * Remove a restaurant from favorites by its place_id
+     */
+    fun removeFavorite(context: Context, placeId: String) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val favorites = getFavorites(context).toMutableSet()
+        favorites.remove(placeId)
+        prefs.edit().putStringSet(KEY_FAVORITES, favorites).apply()
+    }
+
+    /**
+     * Get all favorited restaurant place_ids
+     */
+    fun getFavorites(context: Context): Set<String> {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return prefs.getStringSet(KEY_FAVORITES, emptySet()) ?: emptySet()
+    }
+
+    /**
+     * Check if a restaurant is favorited
+     */
+    fun isFavorite(context: Context, placeId: String): Boolean {
+        return getFavorites(context).contains(placeId)
+    }
+
+    /**
+     * Save the last viewed favorite restaurant for widget display
+     */
+    fun saveLastViewedFavorite(context: Context, name: String, wait: Int, color: Int) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(KEY_LAST_FAVORITE_NAME, name)
+            .putInt(KEY_LAST_FAVORITE_WAIT, wait)
+            .putInt(KEY_LAST_FAVORITE_COLOR, color)
+            .apply()
+    }
+
+    /**
+     * Load the last viewed favorite restaurant for widget display
+     */
+    fun getLastViewedFavorite(context: Context): SavedRestaurant {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return SavedRestaurant(
+            name = prefs.getString(KEY_LAST_FAVORITE_NAME, null),
+            wait = if (prefs.contains(KEY_LAST_FAVORITE_WAIT)) prefs.getInt(KEY_LAST_FAVORITE_WAIT, 0) else null,
+            color = if (prefs.contains(KEY_LAST_FAVORITE_COLOR)) prefs.getInt(KEY_LAST_FAVORITE_COLOR, 0) else null
+        )
+    }
+}

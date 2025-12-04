@@ -36,6 +36,7 @@ class NearbySearchRepository {
             // index and add to the list (https://stackoverflow.com/questions/9151619/how-to-iterate-over-a-jsonobject)
             (0 until restaurantsJson.length()).map { i ->
                 val item = restaurantsJson.getJSONObject(i)
+                val placeId = item.getString("place_id")
                 val name = item.getString("name")
                 val location = item.getJSONObject("geometry").getJSONObject("location")
                 val lat2 = location.getDouble("lat")
@@ -54,6 +55,7 @@ class NearbySearchRepository {
 
                 // create a restaurant out of the api response
                 Restaurant(
+                    id = placeId,
                     name = name,
                     description = item.optString("vicinity", "No description"),
 
@@ -106,4 +108,3 @@ class NearbySearchRepository {
 
 
 }
-

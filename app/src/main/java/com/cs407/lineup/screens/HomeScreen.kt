@@ -26,12 +26,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
@@ -47,6 +50,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -76,6 +81,7 @@ import androidx.glance.appwidget.updateAll
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cs407.lineup.BuildConfig
 import com.cs407.lineup.R
+import com.cs407.lineup.data.FavoritePrefs
 import com.cs407.lineup.data.LocationHelper
 import com.cs407.lineup.data.LocationViewModel
 import com.cs407.lineup.data.ProfilePrefs
@@ -635,8 +641,20 @@ fun RestaurantListSheet(
     onClose: () -> Unit,
     favoriteCategories: Set<String> = emptySet()
 ) {
+    // get context for accessing SharedPreferences
+    val context = LocalContext.current
+
     // state for opening filter modal w/ categories & sorting
     var showFilterSheet by remember { mutableStateOf(false) }
+
+    // search query state
+    var searchQuery by remember { mutableStateOf("") }
+
+    // favorites toggle state
+    var showOnlyFavorites by remember { mutableStateOf(false) }
+
+    // state to track favorited restaurant IDs (triggers recomposition when changed)
+    var favoriteIds by remember { mutableStateOf(FavoritePrefs.getFavorites(context)) }
 
     // label for dropdown & all the categories
     val allLabel = "All Establishments"
@@ -665,12 +683,110 @@ fun RestaurantListSheet(
         }
     }
 
+    // search filtering: apply search query on top of category filtering
+    val searchFiltered by remember(searchQuery, filtered) {
+        derivedStateOf {
+            if (searchQuery.isBlank()) {
+                filtered
+            } else {
+                filtered.filter { r ->
+                    r.name.contains(searchQuery, ignoreCase = true)
+                }
+            }
+        }
+    }
+
+    // favorites filtering: apply favorites filter on top of search and category filtering
+    val favoritesFiltered by remember(showOnlyFavorites, searchFiltered, favoriteIds) {
+        derivedStateOf {
+            if (showOnlyFavorites) {
+                searchFiltered.filter { r ->
+                    favoriteIds.contains(r.id)
+                }
+            } else {
+                searchFiltered
+            }
+        }
+    }
+
     // when selected category is changed, refilter and update first restaurant to be highlighted on map
     LaunchedEffect(selectedCategories) {
         onCategoryChangeFirst(filtered.firstOrNull())
     }
 
     Column {
+        // search bar for filtering by name
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            placeholder = { Text("Search...", fontFamily = ubuntu) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            shape = RoundedCornerShape(12.dp),
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Search",
+                    tint = Color(0xFF1B5E20)
+                )
+            },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Clear search",
+                            tint = Color.Gray
+                        )
+                    }
+                }
+            },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Color(0xFF1B5E20),
+                unfocusedBorderColor = Color.LightGray,
+                focusedLabelColor = Color(0xFF1B5E20),
+                cursorColor = Color(0xFF1B5E20)
+            ),
+            singleLine = true
+        )
+
+        // favorites toggle switch
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .clickable { showOnlyFavorites = !showOnlyFavorites },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.Star,
+                    contentDescription = "Favorites",
+                    tint = Color(0xFFFFD700),
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Show only favorites",
+                    fontFamily = ubuntu,
+                    fontSize = 16.sp,
+                    color = Color.Black
+                )
+            }
+            Switch(
+                checked = showOnlyFavorites,
+                onCheckedChange = { showOnlyFavorites = it },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = Color(0xFF1B5E20),
+                    uncheckedThumbColor = Color.White,
+                    uncheckedTrackColor = Color.LightGray
+                )
+            )
+        }
+
         // filter button that opens the modal
         Box(
             modifier = Modifier
@@ -804,7 +920,7 @@ fun RestaurantListSheet(
                     // apply button to apply filters (sorting happens in HomeScreen)
                     Button(
                         onClick = {
-                            onCategoryChangeFirst(filtered.firstOrNull())
+                            onCategoryChangeFirst(favoritesFiltered.firstOrNull())
                             showFilterSheet = false
                         },
                         modifier = Modifier
@@ -837,9 +953,23 @@ fun RestaurantListSheet(
         }
         // list of restaurants (once loaded)
         LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
-            itemsIndexed(filtered) { index, restaurant ->
+            itemsIndexed(favoritesFiltered) { index, restaurant ->
                 HorizontalDivider(color = Color.Black, thickness = 1.dp)
-                RestaurantListItem(restaurant, index) { onItemClick(restaurant) }
+                RestaurantListItem(
+                    restaurant = restaurant,
+                    index = index,
+                    onClick = { onItemClick(restaurant) },
+                    onFavoriteToggle = {
+                        if (favoriteIds.contains(restaurant.id)) {
+                            FavoritePrefs.removeFavorite(context, restaurant.id)
+                            favoriteIds = favoriteIds - restaurant.id
+                        } else {
+                            FavoritePrefs.addFavorite(context, restaurant.id)
+                            favoriteIds = favoriteIds + restaurant.id
+                        }
+                    },
+                    isFavorite = favoriteIds.contains(restaurant.id)
+                )
             }
         }
     }
@@ -849,7 +979,13 @@ fun RestaurantListSheet(
  * a single restaurant list item
  */
 @Composable
-fun RestaurantListItem(restaurant: Restaurant, index: Int, onClick: () -> Unit) {
+fun RestaurantListItem(
+    restaurant: Restaurant,
+    index: Int,
+    onClick: () -> Unit,
+    onFavoriteToggle: () -> Unit,
+    isFavorite: Boolean
+) {
     // background colors that rotate every 6 items  ( use modulus ;) )
     val backgroundColors = listOf(
         Color(0xFFFFCDC9),
@@ -883,6 +1019,29 @@ fun RestaurantListItem(restaurant: Restaurant, index: Int, onClick: () -> Unit) 
                 fontFamily = ubuntu
             )
         }
+
+        // star icon for favorites
+        IconButton(
+            onClick = { onFavoriteToggle() },
+            modifier = Modifier.size(40.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Star,
+                contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                tint = if (isFavorite) Color(0xFFFFD700) else Color.LightGray,
+                modifier = Modifier
+                    .size(28.dp)
+                    .then(
+                        if (!isFavorite) Modifier.border(
+                            1.dp,
+                            Color.Gray,
+                            CircleShape
+                        ) else Modifier
+                    )
+            )
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
 
         // right side shows the wait time box
         Box(
