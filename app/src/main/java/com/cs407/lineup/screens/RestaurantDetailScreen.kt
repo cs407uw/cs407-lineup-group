@@ -13,19 +13,32 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,12 +47,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cs407.lineup.data.Restaurant
 import coil.compose.AsyncImage
 import com.cs407.lineup.data.LocationViewModel
+import com.cs407.lineup.data.WaitTimeRepository
+import com.cs407.lineup.data.FirebaseRepository
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import java.io.File
 
 @Composable
 fun RestaurantDetailScreen(
@@ -175,6 +196,11 @@ fun RestaurantDetailScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // Capture Line button
+                    CaptureLineButton(restaurant = restaurant)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     // back button
                     TextButton(onClick = onBack) {
                         Text("Back", color = Color.Gray, fontSize = 16.sp)
@@ -256,3 +282,274 @@ fun RestaurantMetaInfo(restaurant: Restaurant) {
     }
 }
 
+/**
+ * Composable button to capture an image of the line and upload to Gemini API
+ * for wait time estimation, with manual entry option
+ */
+@Composable
+fun CaptureLineButton(restaurant: Restaurant) {
+    val context = LocalContext.current
+    val waitTimeRepository = remember { WaitTimeRepository() }
+    val coroutineScope = rememberCoroutineScope()
+
+    // State for loading and result
+    var isUploading by remember { mutableStateOf(false) }
+    var resultMessage by remember { mutableStateOf<String?>(null) }
+
+    // State for manual entry dialog
+    var showManualEntryDialog by remember { mutableStateOf(false) }
+    var manualWaitTime by remember { mutableStateOf("") }
+
+    // File to store the captured image
+    val imageFile = remember {
+        File(context.cacheDir, "captured_line_${System.currentTimeMillis()}.jpg")
+    }
+
+    // URI for the image file
+    val imageUri = remember(imageFile) {
+        androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            imageFile
+        )
+    }
+
+    // Shared function to process image upload
+    fun processImageUpload() {
+        isUploading = true
+        resultMessage = null
+
+        coroutineScope.launch {
+            val apiKey = com.cs407.lineup.data.ApiKeyProvider.geminiApiKey
+            val result = waitTimeRepository.uploadImage(imageFile, apiKey)
+
+            isUploading = false
+
+            if (result.isSuccess) {
+                val calculator = com.cs407.lineup.data.WaitTimeCalculator()
+                resultMessage = "Wait Time: ${calculator.formatWaitTime(
+                    result.waitTimeMinutes!!,
+                    result.confidence!!
+                )}"
+            } else {
+                resultMessage = result.errorMessage ?: "Unknown error"
+            }
+        }
+    }
+
+    // Camera launcher
+    val cameraLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            processImageUpload()
+        } else {
+            Toast.makeText(context, "Image capture cancelled", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Image picker launcher (for gallery)
+    val imagePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                // Copy the selected image to our cache file
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    imageFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                processImageUpload()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error loading image: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // Permission launcher
+    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            cameraLauncher.launch(imageUri)
+        } else {
+            Toast.makeText(context, "Camera permission required", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Manual Entry Dialog
+    if (showManualEntryDialog) {
+        AlertDialog(
+            onDismissRequest = { showManualEntryDialog = false },
+            title = {
+                Text(
+                    "Enter Wait Time",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        "How many minutes is the current wait?",
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = manualWaitTime,
+                        onValueChange = {
+                            // Only allow numbers
+                            if (it.all { char -> char.isDigit() }) {
+                                manualWaitTime = it
+                            }
+                        },
+                        label = { Text("Minutes") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val minutes = manualWaitTime.toIntOrNull()
+                        if (minutes != null && minutes >= 0) {
+                            resultMessage = "Wait Time: $minutes min (Manual Entry)"
+                            showManualEntryDialog = false
+                            manualWaitTime = ""
+                        } else {
+                            Toast.makeText(context, "Please enter a valid number", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+                ) {
+                    Text("Submit")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showManualEntryDialog = false
+                    manualWaitTime = ""
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        // Row with Camera button (75%) and Gallery icon (25%)
+        Row(
+            modifier = Modifier.fillMaxWidth(0.8f),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Camera button - takes most of the space
+            Button(
+                onClick = {
+                    when {
+                        androidx.core.content.ContextCompat.checkSelfPermission(
+                            context,
+                            android.Manifest.permission.CAMERA
+                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED -> {
+                            cameraLauncher.launch(imageUri)
+                        }
+                        else -> {
+                            permissionLauncher.launch(android.Manifest.permission.CAMERA)
+                        }
+                    }
+                },
+                enabled = !isUploading,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3)),
+                modifier = Modifier
+                    .weight(0.75f)
+                    .height(50.dp),
+                shape = RoundedCornerShape(25.dp)
+            ) {
+                Text(
+                    text = if (isUploading) "ANALYZING..." else "CAPTURE LINE",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+            }
+
+            // Gallery icon button
+            IconButton(
+                onClick = { imagePickerLauncher.launch("image/*") },
+                enabled = !isUploading,
+                modifier = Modifier
+                    .weight(0.25f)
+                    .height(50.dp),
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = Color(0xFF2196F3).copy(alpha = 0.15f)
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Choose from gallery",
+                    tint = Color(0xFF2196F3),
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Manual entry button
+        Button(
+            onClick = { showManualEntryDialog = true },
+            enabled = !isUploading,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF4CAF50)
+            ),
+            modifier = Modifier
+                .fillMaxWidth(0.8f)
+                .height(50.dp),
+            shape = RoundedCornerShape(25.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Edit,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "ENTER WAIT TIME",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+        }
+
+        // Display result message
+        resultMessage?.let { message ->
+            Spacer(modifier = Modifier.height(12.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.8f)
+                    .background(
+                        color = if (message.startsWith("Wait Time"))
+                            Color(0xFF1B5E20).copy(alpha = 0.1f)
+                        else Color.Red.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = message,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (message.startsWith("Wait Time")) Color(0xFF1B5E20) else Color.Red,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+}
