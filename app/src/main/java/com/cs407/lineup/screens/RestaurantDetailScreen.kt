@@ -16,23 +16,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,7 +37,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.cs407.lineup.data.FavoritePrefs
 import com.cs407.lineup.data.Restaurant
 import coil.compose.AsyncImage
 import com.cs407.lineup.data.LocationViewModel
@@ -54,9 +46,6 @@ fun RestaurantDetailScreen(
     restaurant: Restaurant, onBack: () -> Unit, locationViewModel: LocationViewModel = viewModel()
 ) {
     val context = LocalContext.current
-
-    // favorite state for toggle button
-    var isFavorite by remember { mutableStateOf(FavoritePrefs.isFavorite(context, restaurant.id)) }
 
     // location state for navigation
     val userLocation by locationViewModel.location.collectAsState()
@@ -186,48 +175,6 @@ fun RestaurantDetailScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // favorite toggle button
-                    OutlinedButton(
-                        onClick = {
-                            isFavorite = if (isFavorite) {
-                                FavoritePrefs.removeFavorite(context, restaurant.id)
-                                false
-                            } else {
-                                FavoritePrefs.addFavorite(context, restaurant.id)
-                                // Save as last viewed favorite for widget
-                                FavoritePrefs.saveLastViewedFavorite(
-                                    context,
-                                    restaurant.name,
-                                    restaurant.waitTimeMinutes,
-                                    restaurant.color.value.toInt()
-                                )
-                                true
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth(0.7f)
-                            .height(50.dp),
-                        shape = RoundedCornerShape(25.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (isFavorite) Color(0xFFFFF8DC) else Color.Transparent,
-                            contentColor = Color(0xFF1B5E20)
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Star,
-                            contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
-                            tint = if (isFavorite) Color(0xFFFFD700) else Color(0xFF1B5E20)
-                        )
-                        Spacer(modifier = Modifier.padding(4.dp))
-                        Text(
-                            text = if (isFavorite) "REMOVE FROM FAVORITES" else "ADD TO FAVORITES",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
                     // back button
                     TextButton(onClick = onBack) {
                         Text("Back", color = Color.Gray, fontSize = 16.sp)
@@ -308,3 +255,4 @@ fun RestaurantMetaInfo(restaurant: Restaurant) {
         }
     }
 }
+
