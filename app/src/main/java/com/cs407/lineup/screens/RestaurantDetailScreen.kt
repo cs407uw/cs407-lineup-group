@@ -320,7 +320,7 @@ fun CaptureLineButton(restaurant: Restaurant) {
         resultMessage = null
 
         coroutineScope.launch {
-            val apiKey = com.cs407.lineup.BuildConfig.GEMINI_API_KEY
+            val apiKey = com.cs407.lineup.data.ApiKeyProvider.geminiApiKey
             val result = waitTimeRepository.uploadImage(imageFile, apiKey)
 
             isUploading = false
