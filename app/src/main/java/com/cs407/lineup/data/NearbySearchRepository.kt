@@ -94,13 +94,23 @@ class NearbySearchRepository {
                 }
 
                 // Fetch wait times from Firebase for all restaurants
+                Log.d(TAG, "Fetching wait times from Firebase for ${restaurants.size} restaurants...")
                 val placeIds = restaurants.map { it.id }
                 val waitTimes = firebaseRepository.getWaitTimesForVenues(placeIds)
 
                 // Merge wait times into restaurants
-                restaurants.map { restaurant ->
-                    restaurant.copy(waitTimeMinutes = waitTimes[restaurant.id])
+                val mergedRestaurants = restaurants.map { restaurant ->
+                    val waitTime = waitTimes[restaurant.id]
+                    if (waitTime != null) {
+                        Log.d(TAG, "✅ ${restaurant.name}: $waitTime min wait (from database)")
+                    }
+                    restaurant.copy(waitTimeMinutes = waitTime)
                 }
+
+                val withData = mergedRestaurants.count { it.waitTimeMinutes != null }
+                Log.d(TAG, "HomeScreen will display: $withData restaurants with wait times, ${mergedRestaurants.size - withData} without")
+
+                mergedRestaurants
 
             } catch (e: Exception) {
                 Log.e(TAG, "Error fetching restaurants: ${e.message}", e)

@@ -18,12 +18,13 @@ import kotlinx.coroutines.tasks.await
  *   val apiKey = ApiKeyProvider.geminiApiKey
  */
 object ApiKeyProvider {
-    
+
     private const val TAG = "ApiKeyProvider"
-    
+
     // Remote Config parameter names (must match Firebase Console)
     private const val GEMINI_API_KEY_PARAM = "gemini_api_key"
-    
+    private const val PLACES_API_KEY_PARAM = "places_api_key"
+
     private val remoteConfig: FirebaseRemoteConfig by lazy {
         Firebase.remoteConfig.apply {
             // Set minimum fetch interval (0 for debug, 3600 for production)
@@ -31,14 +32,15 @@ object ApiKeyProvider {
                 minimumFetchIntervalInSeconds = 3600 // 1 hour cache
             }
             setConfigSettingsAsync(configSettings)
-            
+
             // Set default values (fallback if fetch fails)
             setDefaultsAsync(mapOf(
-                GEMINI_API_KEY_PARAM to "" // Empty default, will use BuildConfig as fallback
+                GEMINI_API_KEY_PARAM to "",
+                PLACES_API_KEY_PARAM to ""
             ))
         }
     }
-    
+
     /**
      * The Gemini API key from Remote Config.
      * Falls back to BuildConfig if Remote Config is empty.
@@ -53,7 +55,22 @@ object ApiKeyProvider {
                 com.cs407.lineup.BuildConfig.GEMINI_API_KEY
             }
         }
-    
+
+    /**
+     * The Google Places API key from Remote Config.
+     * Falls back to BuildConfig MAPS_API_KEY if Remote Config is empty.
+     */
+    val placesApiKey: String
+        get() {
+            val remoteKey = remoteConfig.getString(PLACES_API_KEY_PARAM)
+            return if (remoteKey.isNotBlank()) {
+                remoteKey
+            } else {
+                // Fallback to local BuildConfig for development
+                com.cs407.lineup.BuildConfig.MAPS_API_KEY
+            }
+        }
+
     /**
      * Initialize and fetch remote config values.
      * Call this once at app startup.
@@ -63,10 +80,26 @@ object ApiKeyProvider {
             // Fetch and activate remote config
             remoteConfig.fetchAndActivate().await()
             Log.d(TAG, "Remote Config fetched successfully")
-            
-            // Log whether we got the key (don't log the actual key!)
-            val hasKey = remoteConfig.getString(GEMINI_API_KEY_PARAM).isNotBlank()
-            Log.d(TAG, "Gemini API key from Remote Config: ${if (hasKey) "present" else "not set, using fallback"}")
+
+            // Log all available keys
+            val allKeys = remoteConfig.all.keys
+            Log.d(TAG, "All Remote Config keys: $allKeys")
+
+            // Log Gemini key status with first 10 chars
+            val geminiKey = remoteConfig.getString(GEMINI_API_KEY_PARAM)
+            if (geminiKey.isNotBlank()) {
+                Log.d(TAG, "Gemini API key: from Remote Config (${geminiKey.take(10)}...)")
+            } else {
+                Log.d(TAG, "Gemini API key: using BuildConfig fallback")
+            }
+
+            // Log Places key status with first 10 chars
+            val placesKey = remoteConfig.getString(PLACES_API_KEY_PARAM)
+            if (placesKey.isNotBlank()) {
+                Log.d(TAG, "Places API key: from Remote Config (${placesKey.take(10)}...)")
+            } else {
+                Log.d(TAG, "Places API key: using BuildConfig fallback (MAPS_API_KEY)")
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to fetch Remote Config, using defaults", e)
         }

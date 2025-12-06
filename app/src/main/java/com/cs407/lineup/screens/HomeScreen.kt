@@ -1,6 +1,5 @@
 package com.cs407.lineup.screens
 
-import NearbySearchRepository
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -79,9 +78,9 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.glance.appwidget.updateAll
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.cs407.lineup.BuildConfig
 import com.cs407.lineup.R
 import com.cs407.lineup.data.FavoritePrefs
+import com.cs407.lineup.data.HomeViewModel
 import com.cs407.lineup.data.LocationHelper
 import com.cs407.lineup.data.LocationViewModel
 import com.cs407.lineup.data.ProfilePrefs
@@ -143,13 +142,15 @@ fun HomeScreen(
         position = CameraPosition.fromLatLngZoom(initial, 13f)
     }
     val locationViewModel: LocationViewModel = viewModel()
-    //val userLocation by locationViewModel.location.collectAsState()
     val gpsLocation by locationViewModel.location.collectAsState()
 
-    // variable for fetching nearby restaurants and restaurants within user's map frame, respectively:
-    var nearbyRestaurants by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
-    var sortedRestaurants by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
+    // ViewModel for caching restaurant data across navigation
+    val homeViewModel: HomeViewModel = viewModel()
+    val nearbyRestaurants by homeViewModel.nearbyRestaurants.collectAsState()
+    val isLoadingRestaurants by homeViewModel.isLoading.collectAsState()
 
+    // Sorted restaurants for display
+    var sortedRestaurants by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
 
     // Manual location input
     val locationHelper = remember { LocationHelper(context) }
@@ -179,17 +180,11 @@ fun HomeScreen(
             locationViewModel.startLocationUpdates()
         }
     }
-    // when the user location changes, fetch nearby restaurants and store results in a state to update ui
+
+    // When user location changes, fetch nearby restaurants using ViewModel (cached)
     LaunchedEffect(userLocation) {
         if (userLocation != null) {
-            val repo = NearbySearchRepository()
-
-            val results = repo.getNearbyRestaurants(
-                lat = userLocation!!.latitude,
-                lng = userLocation!!.longitude,
-                apiKey = BuildConfig.MAPS_API_KEY
-            )
-            nearbyRestaurants = results
+            homeViewModel.fetchNearbyRestaurants(userLocation)
         }
     }
     // map animation that gets triggered whenever userLocation updates
@@ -221,14 +216,15 @@ fun HomeScreen(
     }
 
     LaunchedEffect(sortOption, nearbyRestaurants, userLocation, cameraPositionState.isMoving) {
+        val currentLocation = userLocation  // Smart cast helper
         val baseSorted =
             when (sortOption) {
                 "Wait Time" -> nearbyRestaurants.sortedBy { it.waitTimeMinutes ?: Int.MAX_VALUE }
                 "Rating" -> nearbyRestaurants.sortedByDescending { it.rating ?: 0.0 }
                 "Price" -> nearbyRestaurants.sortedBy { it.priceLevel ?: Int.MAX_VALUE }
                 "Distance" ->
-                    if (userLocation != null)
-                        nearbyRestaurants.sortedBy { distanceMeters(userLocation!!, it.latLng) }
+                    if (currentLocation != null)
+                        nearbyRestaurants.sortedBy { distanceMeters(currentLocation, it.latLng) }
                     else nearbyRestaurants
                 else -> nearbyRestaurants
             }

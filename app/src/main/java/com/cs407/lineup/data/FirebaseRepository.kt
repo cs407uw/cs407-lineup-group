@@ -10,7 +10,11 @@ import java.util.Calendar
  * Handles saving feedback and retrieving venue metrics
  */
 class FirebaseRepository {
-    
+
+    companion object {
+        private const val TAG = "FirebaseRepository"
+    }
+
     private val db = FirebaseFirestore.getInstance()
     
     /**
@@ -139,6 +143,14 @@ class FirebaseRepository {
         rawAiEstimate: Int? = null
     ): Boolean {
         return try {
+            android.util.Log.d(TAG, "=== SAVING WAIT TIME TO DATABASE ===")
+            android.util.Log.d(TAG, "Venue: $venueName (ID: $venueId)")
+            android.util.Log.d(TAG, "Wait time: $waitMinutes minutes")
+            android.util.Log.d(TAG, "Source: $source")
+            if (rawAiEstimate != null) {
+                android.util.Log.d(TAG, "Raw AI estimate: $rawAiEstimate minutes")
+            }
+
             val now = Timestamp.now()
             val expiresAt = Timestamp(
                 now.seconds + (WaitTimeData.EXPIRATION_MINUTES * 60),
@@ -155,6 +167,9 @@ class FirebaseRepository {
             )
 
             // Save to venues/{venueId}/current_wait
+            val docPath = "venues/$venueId/current_wait/latest"
+            android.util.Log.d(TAG, "Writing to Firestore path: $docPath")
+
             db.collection("venues")
                 .document(venueId)
                 .collection("current_wait")
@@ -167,10 +182,12 @@ class FirebaseRepository {
                 calculateAndUpdateBias(venueId, waitMinutes)
             }
 
-            android.util.Log.d("FirebaseRepository", "Saved wait time: $waitMinutes min for $venueName ($source)")
+            android.util.Log.d(TAG, "✅ SUCCESS: Wait time saved to database!")
+            android.util.Log.d(TAG, "Expires at: ${expiresAt.toDate()}")
+            android.util.Log.d(TAG, "=== END SAVE WAIT TIME ===")
             true
         } catch (e: Exception) {
-            android.util.Log.e("FirebaseRepository", "Error saving wait time", e)
+            android.util.Log.e(TAG, "❌ ERROR: Failed to save wait time to database", e)
             false
         }
     }
@@ -190,12 +207,16 @@ class FirebaseRepository {
             val waitTimeData = doc.toObject(WaitTimeData::class.java)
 
             if (waitTimeData != null && waitTimeData.isValid()) {
+                android.util.Log.d(TAG, "Found valid wait time for $venueId: ${waitTimeData.waitMinutes} min (source: ${waitTimeData.source})")
                 waitTimeData.waitMinutes
+            } else if (waitTimeData != null) {
+                android.util.Log.d(TAG, "Wait time for $venueId expired")
+                null  // Expired
             } else {
-                null  // Expired or not found
+                null  // Not found
             }
         } catch (e: Exception) {
-            android.util.Log.e("FirebaseRepository", "Error getting wait time for $venueId", e)
+            android.util.Log.e(TAG, "Error getting wait time for $venueId", e)
             null
         }
     }
@@ -204,6 +225,9 @@ class FirebaseRepository {
      * Batch fetch wait times for multiple venues (for list display)
      */
     suspend fun getWaitTimesForVenues(venueIds: List<String>): Map<String, Int?> {
+        android.util.Log.d(TAG, "=== FETCHING WAIT TIMES FROM DATABASE ===")
+        android.util.Log.d(TAG, "Fetching wait times for ${venueIds.size} venues")
+
         val results = mutableMapOf<String, Int?>()
 
         // Fetch in parallel batches (Firestore limits to 10 per batch for IN queries)
@@ -212,6 +236,13 @@ class FirebaseRepository {
                 results[venueId] = getWaitTime(venueId)
             }
         }
+
+        val venuesWithData = results.count { it.value != null }
+        android.util.Log.d(TAG, "Found wait times for $venuesWithData out of ${venueIds.size} venues")
+        if (venuesWithData > 0) {
+            android.util.Log.d(TAG, "Venues with wait times: ${results.filter { it.value != null }}")
+        }
+        android.util.Log.d(TAG, "=== END FETCH WAIT TIMES ===")
 
         return results
     }
@@ -235,7 +266,7 @@ class FirebaseRepository {
             // Only calculate bias if previous entry was AI and we have the raw estimate
             if (previousData?.source == WaitTimeData.SOURCE_AI && previousData.rawAiEstimate != null) {
                 val now = Timestamp.now()
-                val timeElapsedMinutes = (now.seconds - previousData.reportedAt.seconds) / 60
+                val timeElapsedMinutes = ((now.seconds - previousData.reportedAt.seconds) / 60).toInt()
 
                 // Only calculate if less than 30 minutes have passed
                 if (timeElapsedMinutes <= 30) {
@@ -245,7 +276,7 @@ class FirebaseRepository {
                     // Bias = AI estimate - actual (positive = AI overestimated)
                     val bias = previousData.rawAiEstimate - estimatedActualWait
 
-                    android.util.Log.d("FirebaseRepository",
+                    android.util.Log.d(TAG,
                         "Bias calculation: AI=${previousData.rawAiEstimate}, " +
                         "Manual=$manualWaitMinutes, Elapsed=$timeElapsedMinutes, Bias=$bias")
 
