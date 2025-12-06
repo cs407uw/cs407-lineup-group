@@ -63,6 +63,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import java.io.File
+import android.app.Activity
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun RestaurantDetailScreen(
@@ -291,9 +293,11 @@ fun RestaurantMetaInfo(restaurant: Restaurant) {
 @Composable
 fun CaptureLineButton(restaurant: Restaurant) {
     val context = LocalContext.current
+    val activity = context as Activity
     val waitTimeRepository = remember { WaitTimeRepository() }
     val firebaseRepository = remember { FirebaseRepository() }
-    val homeViewModel: HomeViewModel = viewModel()
+    // Use activity-scoped ViewModel so it's shared with HomeScreen
+    val homeViewModel: HomeViewModel = viewModel(viewModelStoreOwner = activity as androidx.lifecycle.ViewModelStoreOwner)
     val coroutineScope = rememberCoroutineScope()
 
     // State for loading and result
@@ -346,7 +350,7 @@ fun CaptureLineButton(restaurant: Restaurant) {
                     rawAiEstimate = waitMinutes
                 )
                 if (saved) {
-                    homeViewModel.markNeedsRefresh()
+                    homeViewModel.refreshWaitTimes()  // Refresh immediately
                     Toast.makeText(context, "Wait time saved to database", Toast.LENGTH_SHORT).show()
                 }
             } else {
@@ -443,7 +447,7 @@ fun CaptureLineButton(restaurant: Restaurant) {
                                     source = WaitTimeData.SOURCE_MANUAL
                                 )
                                 if (saved) {
-                                    homeViewModel.markNeedsRefresh()
+                                    homeViewModel.refreshWaitTimes()  // Refresh immediately
                                     resultMessage = "Wait Time: $minutes min (Manual Entry) ✓ Saved"
                                     Toast.makeText(context, "Wait time saved to database!", Toast.LENGTH_SHORT).show()
                                 } else {

@@ -141,11 +141,12 @@ fun HomeScreen(
     val cameraPositionState: CameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(initial, 13f)
     }
+    val activity = context as android.app.Activity
     val locationViewModel: LocationViewModel = viewModel()
     val gpsLocation by locationViewModel.location.collectAsState()
 
-    // ViewModel for caching restaurant data across navigation
-    val homeViewModel: HomeViewModel = viewModel()
+    // ViewModel for caching restaurant data across navigation (activity-scoped so it's shared with RestaurantDetailScreen)
+    val homeViewModel: HomeViewModel = viewModel(viewModelStoreOwner = activity as androidx.lifecycle.ViewModelStoreOwner)
     val nearbyRestaurants by homeViewModel.nearbyRestaurants.collectAsState()
     val isLoadingRestaurants by homeViewModel.isLoading.collectAsState()
     val needsRefresh by homeViewModel.needsRefresh.collectAsState()
