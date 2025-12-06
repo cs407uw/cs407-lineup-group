@@ -1,6 +1,6 @@
+package com.cs407.lineup.data
+
 import android.util.Log
-import com.cs407.lineup.data.Restaurant
-import com.cs407.lineup.data.restaurantColors
 import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,65 +17,94 @@ import java.net.URL
  */
 class NearbySearchRepository {
 
-    // fetch nearby restaurants for the given lat/long
+    companion object {
+        private const val TAG = "NearbySearchRepository"
+    }
+
+    private val firebaseRepository = FirebaseRepository()
+
+    /**
+     * Fetch nearby restaurants and their wait times from Firebase
+     */
     suspend fun getNearbyRestaurants(lat: Double, lng: Double, apiKey: String): List<Restaurant> {
         return withContext(Dispatchers.IO) {
+            try {
+                // Check if API key is present
+                if (apiKey.isBlank()) {
+                    Log.e(TAG, "Google Places API key is missing!")
+                    return@withContext emptyList()
+                }
 
-            // build url with query for lat/lng, and our specific api key
-            val url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json" +
-                    "?location=$lat,$lng" +
-                    "&radius=1500&type=restaurant&key=$apiKey"
+                // build url with query for lat/lng, and our specific api key
+                val url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json" +
+                        "?location=$lat,$lng" +
+                        "&radius=1500&type=restaurant&key=$apiKey"
 
-            // use url to execute an http request, then parse the resulting string as a json
-            val result = URL(url).readText()
-            val json = JSONObject(result)
-            val restaurantsJson = json.getJSONArray("results")
+                // use url to execute an http request, then parse the resulting string as a json
+                val result = URL(url).readText()
+                val json = JSONObject(result)
 
-            // since json arrays are not iterable, we have to manually access indices from
-            // 0 until the last element (length = last index), then we build a restaurant for each
-            // index and add to the list (https://stackoverflow.com/questions/9151619/how-to-iterate-over-a-jsonobject)
-            (0 until restaurantsJson.length()).map { i ->
-                val item = restaurantsJson.getJSONObject(i)
-                val placeId = item.getString("place_id")
-                val name = item.getString("name")
-                val location = item.getJSONObject("geometry").getJSONObject("location")
-                val lat2 = location.getDouble("lat")
-                val lng2 = location.getDouble("lng")
+                // Check API response status
+                val status = json.optString("status", "UNKNOWN")
+                if (status != "OK" && status != "ZERO_RESULTS") {
+                    Log.e(TAG, "Places API error: $status - ${json.optString("error_message", "No error message")}")
+                    return@withContext emptyList()
+                }
 
-                val googleTypesJson = item.optJSONArray("types")
-                val googleTypes: List<String> =
-                    if (googleTypesJson != null) {
-                        (0 until googleTypesJson.length()).map { index ->
-                            googleTypesJson.getString(index)
+                val restaurantsJson = json.getJSONArray("results")
+
+                // First, parse all restaurants from Google
+                val restaurants = (0 until restaurantsJson.length()).map { i ->
+                    val item = restaurantsJson.getJSONObject(i)
+                    val placeId = item.getString("place_id")
+                    val name = item.getString("name")
+                    val location = item.getJSONObject("geometry").getJSONObject("location")
+                    val lat2 = location.getDouble("lat")
+                    val lng2 = location.getDouble("lng")
+
+                    val googleTypesJson = item.optJSONArray("types")
+                    val googleTypes: List<String> =
+                        if (googleTypesJson != null) {
+                            (0 until googleTypesJson.length()).map { index ->
+                                googleTypesJson.getString(index)
+                            }
+                        } else {
+                            emptyList()
                         }
-                    } else {
-                        emptyList()
-                    }
-                val prettyTypes = mapPlaceTypesToFormattedCategory(googleTypes)
+                    val prettyTypes = mapPlaceTypesToFormattedCategory(googleTypes)
 
-                // create a restaurant out of the api response
-                Restaurant(
-                    id = placeId,
-                    name = name,
-                    description = item.optString("vicinity", "No description"),
+                    Restaurant(
+                        id = placeId,
+                        name = name,
+                        description = item.optString("vicinity", "No description"),
+                        waitTimeMinutes = null,  // Will be filled in from Firebase
+                        type = mapPlaceTypesToCategory(googleTypes),
+                        types = prettyTypes,
+                        latLng = LatLng(lat2, lng2),
+                        color = restaurantColors[i % restaurantColors.size],
+                        imageUrl = item.optJSONArray("photos")?.let {
+                            val photoRef = it.getJSONObject(0).getString("photo_reference")
+                            "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=$photoRef&key=$apiKey"
+                        } ?: "",
+                        rating = item.optDouble("rating", Double.NaN).takeIf { !it.isNaN() },
+                        ratingCount = item.optInt("user_ratings_total").takeIf { it != 0 },
+                        priceLevel = item.optInt("price_level").takeIf { it != 0 },
+                        isOpenNow = item.optJSONObject("opening_hours")?.optBoolean("open_now")
+                    )
+                }
 
-                    // TODO: implement real wait time calculations
-                    waitTimeMinutes = (5..55).random(), // temporary random wait times
-                    type = mapPlaceTypesToCategory(googleTypes),
-                    types = prettyTypes,
-                    latLng = LatLng(lat2, lng2),
-                    color = restaurantColors[i % restaurantColors.size],
+                // Fetch wait times from Firebase for all restaurants
+                val placeIds = restaurants.map { it.id }
+                val waitTimes = firebaseRepository.getWaitTimesForVenues(placeIds)
 
-                    imageUrl = item.optJSONArray("photos")?.let {
-                        val photoRef = it.getJSONObject(0).getString("photo_reference")
-                        "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=$photoRef&key=$apiKey"
-                    } ?: "",
+                // Merge wait times into restaurants
+                restaurants.map { restaurant ->
+                    restaurant.copy(waitTimeMinutes = waitTimes[restaurant.id])
+                }
 
-                    rating = item.optDouble("rating", Double.NaN).takeIf { !it.isNaN() },
-                    ratingCount = item.optInt("user_ratings_total").takeIf { it != 0 },
-                    priceLevel = item.optInt("price_level").takeIf { it != 0 },
-                    isOpenNow = item.optJSONObject("opening_hours")?.optBoolean("open_now")
-                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error fetching restaurants: ${e.message}", e)
+                emptyList()
             }
         }
     }

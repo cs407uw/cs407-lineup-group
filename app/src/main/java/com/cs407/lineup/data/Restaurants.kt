@@ -10,7 +10,7 @@ data class Restaurant(
     val id: String,
     val name: String,
     val description: String,
-    val waitTimeMinutes: Int,
+    val waitTimeMinutes: Int?,  // Nullable - null means no wait time data available
     val type: String,
     val types: List<String>,
     val latLng: LatLng,
@@ -20,7 +20,13 @@ data class Restaurant(
     val ratingCount: Int? = null,
     val priceLevel: Int? = null,
     val isOpenNow: Boolean? = null
-)
+) {
+    /**
+     * Display-friendly wait time string
+     */
+    val waitTimeDisplay: String
+        get() = waitTimeMinutes?.let { "$it min" } ?: "No data"
+}
 
 /**
  * a set of colors associated with a restaurant card. these are rotating which allows

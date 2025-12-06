@@ -223,7 +223,7 @@ fun HomeScreen(
     LaunchedEffect(sortOption, nearbyRestaurants, userLocation, cameraPositionState.isMoving) {
         val baseSorted =
             when (sortOption) {
-                "Wait Time" -> nearbyRestaurants.sortedBy { it.waitTimeMinutes }
+                "Wait Time" -> nearbyRestaurants.sortedBy { it.waitTimeMinutes ?: Int.MAX_VALUE }
                 "Rating" -> nearbyRestaurants.sortedByDescending { it.rating ?: 0.0 }
                 "Price" -> nearbyRestaurants.sortedBy { it.priceLevel ?: Int.MAX_VALUE }
                 "Distance" ->
@@ -583,7 +583,7 @@ fun HomeScreen(
                         RestaurantPrefs.saveRestaurant(
                             context,
                             r.name,
-                            r.waitTimeMinutes,
+                            r.waitTimeMinutes ?: 0,
                             r.color.value.toInt()
                         )
                         GlobalScope.launch {
@@ -1057,14 +1057,17 @@ fun RestaurantListItem(
                 modifier = Modifier.padding(8.dp)
             ) {
                 Text(
-                    text = "${restaurant.waitTimeMinutes}",
+                    text = restaurant.waitTimeMinutes?.toString() ?: "—",
                     fontSize = 25.sp,
                     fontFamily = monaspace,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF1B5E20)
                 )
                 Text(
-                    text = "MIN", fontSize = 15.sp, fontFamily = ubuntu, color = Color.Black
+                    text = if (restaurant.waitTimeMinutes != null) "MIN" else "",
+                    fontSize = 15.sp,
+                    fontFamily = ubuntu,
+                    color = Color.Black
                 )
             }
         }
