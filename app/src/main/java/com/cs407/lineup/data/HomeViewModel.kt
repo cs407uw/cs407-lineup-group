@@ -33,9 +33,28 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     
     // Track last fetched location to avoid redundant fetches
     private var lastFetchedLocation: LatLng? = null
-    
+
     // Distance threshold (in meters) before refetching - ~100 meters
     private val refetchDistanceThreshold = 100.0
+
+    // Flag to trigger refresh when returning to HomeScreen
+    private val _needsRefresh = MutableStateFlow(false)
+    val needsRefresh: StateFlow<Boolean> = _needsRefresh.asStateFlow()
+
+    /**
+     * Mark that wait times need to be refreshed (called after saving a wait time)
+     */
+    fun markNeedsRefresh() {
+        Log.d(TAG, "Marked for refresh - will re-fetch when returning to HomeScreen")
+        _needsRefresh.value = true
+    }
+
+    /**
+     * Clear the needs refresh flag
+     */
+    fun clearNeedsRefresh() {
+        _needsRefresh.value = false
+    }
     
     /**
      * Fetch nearby restaurants if needed.

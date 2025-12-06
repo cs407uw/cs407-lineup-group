@@ -148,6 +148,7 @@ fun HomeScreen(
     val homeViewModel: HomeViewModel = viewModel()
     val nearbyRestaurants by homeViewModel.nearbyRestaurants.collectAsState()
     val isLoadingRestaurants by homeViewModel.isLoading.collectAsState()
+    val needsRefresh by homeViewModel.needsRefresh.collectAsState()
 
     // Sorted restaurants for display
     var sortedRestaurants by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
@@ -185,6 +186,14 @@ fun HomeScreen(
     LaunchedEffect(userLocation) {
         if (userLocation != null) {
             homeViewModel.fetchNearbyRestaurants(userLocation)
+        }
+    }
+
+    // Check if we need to refresh data (e.g., after returning from submitting a wait time)
+    LaunchedEffect(needsRefresh, userLocation) {
+        if (needsRefresh && userLocation != null) {
+            homeViewModel.fetchNearbyRestaurants(userLocation, forceRefresh = true)
+            homeViewModel.clearNeedsRefresh()
         }
     }
     // map animation that gets triggered whenever userLocation updates

@@ -57,6 +57,7 @@ import com.cs407.lineup.data.LocationViewModel
 import com.cs407.lineup.data.WaitTimeRepository
 import com.cs407.lineup.data.FirebaseRepository
 import com.cs407.lineup.data.WaitTimeData
+import com.cs407.lineup.data.HomeViewModel
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -292,6 +293,7 @@ fun CaptureLineButton(restaurant: Restaurant) {
     val context = LocalContext.current
     val waitTimeRepository = remember { WaitTimeRepository() }
     val firebaseRepository = remember { FirebaseRepository() }
+    val homeViewModel: HomeViewModel = viewModel()
     val coroutineScope = rememberCoroutineScope()
 
     // State for loading and result
@@ -344,6 +346,7 @@ fun CaptureLineButton(restaurant: Restaurant) {
                     rawAiEstimate = waitMinutes
                 )
                 if (saved) {
+                    homeViewModel.markNeedsRefresh()
                     Toast.makeText(context, "Wait time saved to database", Toast.LENGTH_SHORT).show()
                 }
             } else {
@@ -440,6 +443,7 @@ fun CaptureLineButton(restaurant: Restaurant) {
                                     source = WaitTimeData.SOURCE_MANUAL
                                 )
                                 if (saved) {
+                                    homeViewModel.markNeedsRefresh()
                                     resultMessage = "Wait Time: $minutes min (Manual Entry) ✓ Saved"
                                     Toast.makeText(context, "Wait time saved to database!", Toast.LENGTH_SHORT).show()
                                 } else {
