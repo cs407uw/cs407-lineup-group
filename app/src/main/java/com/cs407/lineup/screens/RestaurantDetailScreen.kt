@@ -56,6 +56,7 @@ import coil.compose.AsyncImage
 import com.cs407.lineup.data.LocationViewModel
 import com.cs407.lineup.data.WaitTimeRepository
 import com.cs407.lineup.data.FirebaseRepository
+import com.cs407.lineup.data.WaitTimeData
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -290,6 +291,7 @@ fun RestaurantMetaInfo(restaurant: Restaurant) {
 fun CaptureLineButton(restaurant: Restaurant) {
     val context = LocalContext.current
     val waitTimeRepository = remember { WaitTimeRepository() }
+    val firebaseRepository = remember { FirebaseRepository() }
     val coroutineScope = rememberCoroutineScope()
 
     // State for loading and result
@@ -326,11 +328,24 @@ fun CaptureLineButton(restaurant: Restaurant) {
             isUploading = false
 
             if (result.isSuccess) {
+                val waitMinutes = result.waitTimeMinutes!!
                 val calculator = com.cs407.lineup.data.WaitTimeCalculator()
                 resultMessage = "Wait Time: ${calculator.formatWaitTime(
-                    result.waitTimeMinutes!!,
+                    waitMinutes,
                     result.confidence!!
                 )}"
+
+                // Save AI estimate to Firebase
+                val saved = firebaseRepository.saveWaitTime(
+                    venueId = restaurant.id,
+                    venueName = restaurant.name,
+                    waitMinutes = waitMinutes,
+                    source = WaitTimeData.SOURCE_AI,
+                    rawAiEstimate = waitMinutes
+                )
+                if (saved) {
+                    Toast.makeText(context, "Wait time saved to database", Toast.LENGTH_SHORT).show()
+                }
             } else {
                 resultMessage = result.errorMessage ?: "Unknown error"
             }
@@ -416,7 +431,22 @@ fun CaptureLineButton(restaurant: Restaurant) {
                     onClick = {
                         val minutes = manualWaitTime.toIntOrNull()
                         if (minutes != null && minutes >= 0) {
-                            resultMessage = "Wait Time: $minutes min (Manual Entry)"
+                            // Save to Firebase
+                            coroutineScope.launch {
+                                val saved = firebaseRepository.saveWaitTime(
+                                    venueId = restaurant.id,
+                                    venueName = restaurant.name,
+                                    waitMinutes = minutes,
+                                    source = WaitTimeData.SOURCE_MANUAL
+                                )
+                                if (saved) {
+                                    resultMessage = "Wait Time: $minutes min (Manual Entry) ✓ Saved"
+                                    Toast.makeText(context, "Wait time saved to database!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    resultMessage = "Wait Time: $minutes min (Manual Entry) - Save failed"
+                                    Toast.makeText(context, "Failed to save wait time", Toast.LENGTH_SHORT).show()
+                                }
+                            }
                             showManualEntryDialog = false
                             manualWaitTime = ""
                         } else {
