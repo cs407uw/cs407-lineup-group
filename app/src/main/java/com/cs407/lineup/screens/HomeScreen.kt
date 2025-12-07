@@ -24,12 +24,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
@@ -52,7 +50,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -72,7 +69,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -148,7 +144,6 @@ fun HomeScreen(
     // activity-scoped so its shared with detail screen
     val homeViewModel: HomeViewModel = viewModel(viewModelStoreOwner = activity as androidx.lifecycle.ViewModelStoreOwner)
     val nearbyRestaurants by homeViewModel.nearbyRestaurants.collectAsState()
-    val isLoadingRestaurants by homeViewModel.isLoading.collectAsState()
     val needsRefresh by homeViewModel.needsRefresh.collectAsState()
 
     var sortedRestaurants by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
@@ -162,7 +157,7 @@ fun HomeScreen(
         locationHelper.getEffectiveLocation(gpsLocation)
     }
 
-    var sortOption by remember { mutableStateOf("Distance") }
+    var sortOption by homeViewModel.sortOption
 
     fun distanceMeters(a: LatLng, b: LatLng): Double {
         val arr = FloatArray(1)
@@ -600,7 +595,8 @@ fun HomeScreen(
                             showSheet = false
                         }
                     },
-                    favoriteCategories = favoriteCategories
+                    favoriteCategories = favoriteCategories,
+                    homeViewModel = homeViewModel
                 )
 
             }
@@ -642,19 +638,16 @@ fun RestaurantListSheet(
     onItemClick: (Restaurant) -> Unit,
     onCategoryChangeFirst: (Restaurant?) -> Unit,
     onClose: () -> Unit,
-    favoriteCategories: Set<String> = emptySet()
-) {
+    favoriteCategories: Set<String> = emptySet(),
+    homeViewModel: HomeViewModel
+)
+ {
     // get context for accessing SharedPreferences
     val context = LocalContext.current
 
     // state for opening filter modal w/ categories & sorting
     var showFilterSheet by remember { mutableStateOf(false) }
 
-    // search query state
-    var searchQuery by remember { mutableStateOf("") }
-
-    // favorites toggle state
-    var showOnlyFavorites by remember { mutableStateOf(false) }
 
     // state to track favorited restaurant IDs (triggers recomposition when changed)
     var favoriteIds by remember { mutableStateOf(FavoritePrefs.getFavorites(context)) }
@@ -662,14 +655,9 @@ fun RestaurantListSheet(
     // label for dropdown & all the categories
     val allLabel = "All Establishments"
 
-    // if user has favorites, use them initially, otherwise show all
-    var selectedCategories by remember {
-        mutableStateOf(
-            if (favoriteCategories.isEmpty()) setOf(allLabel)
-            else favoriteCategories
-        )
-    }
-
+    var searchQuery by homeViewModel.searchQuery
+    var selectedCategories by homeViewModel.selectedCategories
+    var showOnlyFavorites by homeViewModel.showOnlyFavorites
 
     // all category options to display and choose from in modal
     val categories = listOf(allLabel, "Restaurant", "Bar", "Cafe", "Grocery")
@@ -880,12 +868,10 @@ fun RestaurantListSheet(
                                 .padding(vertical = 4.dp)
                                 .clickable {
                                     selectedCategories =
-                                        if (cat == allLabel) { // reset all filters
-                                            emptySet()
-                                        } else if (isSelected) { // unselect the specific category
-                                            selectedCategories - cat
-                                        } else {
-                                            (selectedCategories + cat) - allLabel
+                                        when {
+                                            cat == allLabel -> emptySet()
+                                            isSelected -> selectedCategories - cat
+                                            else -> (selectedCategories + cat) - allLabel
                                         }
                                 },
                             verticalAlignment = Alignment.CenterVertically

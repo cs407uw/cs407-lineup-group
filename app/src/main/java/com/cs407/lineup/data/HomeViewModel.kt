@@ -2,6 +2,7 @@ package com.cs407.lineup.data
 
 import android.app.Application
 import android.util.Log
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.cs407.lineup.BuildConfig
@@ -31,6 +32,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _needsRefresh = MutableStateFlow(false)
     val needsRefresh: StateFlow<Boolean> = _needsRefresh.asStateFlow()
+
+    val searchQuery = mutableStateOf("")
+    val selectedCategories = mutableStateOf(setOf("All Establishments"))
+    val showOnlyFavorites = mutableStateOf(false)
+    val sortOption = mutableStateOf("Distance")
+
 
     fun markNeedsRefresh() {
         Log.d(TAG, "marked for refresh")
