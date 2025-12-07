@@ -236,23 +236,31 @@ class FirebaseRepository {
                 val now = Timestamp.now()
                 val timeElapsedMinutes = ((now.seconds - previousData.reportedAt.seconds) / 60).toInt()
 
+                // only compare if ai estimate was within last 30 min
                 if (timeElapsedMinutes <= 30) {
                     val estimatedActualWait = manualWaitMinutes + timeElapsedMinutes
                     val bias = previousData.rawAiEstimate - estimatedActualWait
 
-                    android.util.Log.d(TAG,
-                        "bias: ai=${previousData.rawAiEstimate}, manual=$manualWaitMinutes, elapsed=$timeElapsedMinutes, bias=$bias")
+                    val entry = BiasEntry(
+                        aiEstimate = previousData.rawAiEstimate,
+                        manualEntry = estimatedActualWait,
+                        biasMinutes = bias,
+                        timestamp = now
+                    )
 
-                    updateVenueBias(venueId, bias.toDouble())
+                    android.util.Log.d(TAG,
+                        "bias entry: ai=${entry.aiEstimate}, actual=${entry.manualEntry}, bias=${entry.biasMinutes}")
+
+                    addBiasEntry(venueId, entry)
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.e("FirebaseRepository", "bias calc error", e)
+            android.util.Log.e(TAG, "bias calc error", e)
         }
     }
 
-    // updates running avg of ai bias
-    private suspend fun updateVenueBias(venueId: String, newBias: Double) {
+    // adds entry to rolling window of 25 and recalculates avg bias
+    private suspend fun addBiasEntry(venueId: String, entry: BiasEntry) {
         try {
             val metricsDoc = db.collection("venues")
                 .document(venueId)
@@ -263,12 +271,40 @@ class FirebaseRepository {
 
             val currentMetrics = metricsDoc.toObject(VenueMetrics::class.java) ?: VenueMetrics()
 
-            val totalPoints = currentMetrics.biasDataPoints + 1
-            val newAvgBias = ((currentMetrics.aiBiasMinutes * currentMetrics.biasDataPoints) + newBias) / totalPoints
+            // convert entry to map for firestore
+            val entryMap = mapOf(
+                "aiEstimate" to entry.aiEstimate,
+                "manualEntry" to entry.manualEntry,
+                "biasMinutes" to entry.biasMinutes,
+                "timestamp" to entry.timestamp
+            )
+
+            // keep last 25 entries (rolling window)
+            val updatedEntries = (currentMetrics.recentBiasEntries + entryMap)
+                .takeLast(VenueMetrics.MAX_BIAS_ENTRIES)
+
+            // calculate avg bias from rolling window
+            val avgBias = updatedEntries.mapNotNull {
+                (it["biasMinutes"] as? Number)?.toDouble()
+            }.average().takeIf { !it.isNaN() } ?: 0.0
+
+            val dataPoints = updatedEntries.size
+
+            // confidence increases with more data points
+            val confidence = when (dataPoints) {
+                0 -> 0.0
+                in 1..4 -> 0.2
+                in 5..9 -> 0.4
+                in 10..14 -> 0.6
+                in 15..19 -> 0.8
+                else -> 1.0
+            }
 
             val updatedMetrics = currentMetrics.copy(
-                aiBiasMinutes = newAvgBias,
-                biasDataPoints = totalPoints,
+                aiBiasMinutes = avgBias,
+                biasDataPoints = dataPoints,
+                biasConfidence = confidence,
+                recentBiasEntries = updatedEntries,
                 lastUpdated = Timestamp.now()
             )
 
@@ -279,17 +315,28 @@ class FirebaseRepository {
                 .set(updatedMetrics)
                 .await()
 
-            android.util.Log.d("FirebaseRepository", "updated bias for $venueId: avg=$newAvgBias, points=$totalPoints")
+            android.util.Log.d(TAG, "bias updated: avg=${"%.1f".format(avgBias)}min, entries=$dataPoints, confidence=${"%.0f".format(confidence * 100)}%")
 
         } catch (e: Exception) {
-            android.util.Log.e("FirebaseRepository", "update bias error", e)
+            android.util.Log.e(TAG, "add bias entry error", e)
         }
     }
 
+    // get current bias correction for ai estimates
     suspend fun getAiBias(venueId: String): Double {
         return try {
             val metrics = getVenueMetrics(venueId)
             metrics?.aiBiasMinutes ?: 0.0
+        } catch (e: Exception) {
+            0.0
+        }
+    }
+
+    // get bias confidence (0.0-1.0) based on data points
+    suspend fun getBiasConfidence(venueId: String): Double {
+        return try {
+            val metrics = getVenueMetrics(venueId)
+            metrics?.biasConfidence ?: 0.0
         } catch (e: Exception) {
             0.0
         }

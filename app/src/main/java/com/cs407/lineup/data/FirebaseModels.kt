@@ -18,15 +18,28 @@ data class WaitTimeFeedback(
     val dayOfWeek: Int = 0
 )
 
-// learned metrics for a venue
+// single ai vs manual comparison for bias calculation
+data class BiasEntry(
+    val aiEstimate: Int = 0,
+    val manualEntry: Int = 0,
+    val biasMinutes: Int = 0,
+    val timestamp: Timestamp = Timestamp.now()
+)
+
+// learned metrics for a venue with rolling bias window
 data class VenueMetrics(
     val avgTimePerPerson: Double = 0.0,
     val totalFeedbackCount: Int = 0,
     val lastUpdated: Timestamp = Timestamp.now(),
-    val confidenceScore: Double = 0.0,
     val aiBiasMinutes: Double = 0.0,
-    val biasDataPoints: Int = 0
-)
+    val biasConfidence: Double = 0.0,
+    val biasDataPoints: Int = 0,
+    val recentBiasEntries: List<Map<String, Any>> = emptyList()
+) {
+    companion object {
+        const val MAX_BIAS_ENTRIES = 25
+    }
+}
 
 // current wait time report
 data class WaitTimeData(
