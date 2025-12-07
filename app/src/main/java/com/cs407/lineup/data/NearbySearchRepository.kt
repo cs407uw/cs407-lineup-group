@@ -7,14 +7,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.URL
 
-/**
- * A repository layer (in MVVM) that is responsible for fetching data regarding nearby restaurants
- * using the google places nearby API (https://developers.google.com/maps/documentation/places/web-service/legacy/search-nearby)
- * legacy nearby is simpler, but we can migrate to new nearby API if necessary
- *
- * @returns list of restaurants, each of which include: name, vicinity, coordinates, ratings,
- * rating counts, price levels, open status, and image urls
- */
+// fetches nearby restaurants from google places api
 class NearbySearchRepository {
 
     companion object {
@@ -23,37 +16,29 @@ class NearbySearchRepository {
 
     private val firebaseRepository = FirebaseRepository()
 
-    /**
-     * Fetch nearby restaurants and their wait times from Firebase
-     */
     suspend fun getNearbyRestaurants(lat: Double, lng: Double, apiKey: String): List<Restaurant> {
         return withContext(Dispatchers.IO) {
             try {
-                // Check if API key is present
                 if (apiKey.isBlank()) {
-                    Log.e(TAG, "Google Places API key is missing!")
+                    Log.e(TAG, "api key missing")
                     return@withContext emptyList()
                 }
 
-                // build url with query for lat/lng, and our specific api key
                 val url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json" +
                         "?location=$lat,$lng" +
                         "&radius=1500&type=restaurant&key=$apiKey"
 
-                // use url to execute an http request, then parse the resulting string as a json
                 val result = URL(url).readText()
                 val json = JSONObject(result)
 
-                // Check API response status
                 val status = json.optString("status", "UNKNOWN")
                 if (status != "OK" && status != "ZERO_RESULTS") {
-                    Log.e(TAG, "Places API error: $status - ${json.optString("error_message", "No error message")}")
+                    Log.e(TAG, "places api error: $status")
                     return@withContext emptyList()
                 }
 
                 val restaurantsJson = json.getJSONArray("results")
 
-                // First, parse all restaurants from Google
                 val restaurants = (0 until restaurantsJson.length()).map { i ->
                     val item = restaurantsJson.getJSONObject(i)
                     val placeId = item.getString("place_id")
@@ -77,7 +62,7 @@ class NearbySearchRepository {
                         id = placeId,
                         name = name,
                         description = item.optString("vicinity", "No description"),
-                        waitTimeMinutes = null,  // Will be filled in from Firebase
+                        waitTimeMinutes = null,
                         type = mapPlaceTypesToCategory(googleTypes),
                         types = prettyTypes,
                         latLng = LatLng(lat2, lng2),
@@ -93,27 +78,23 @@ class NearbySearchRepository {
                     )
                 }
 
-                // Fetch wait times from Firebase for all restaurants
+                // get wait times from firebase
                 val placeIds = restaurants.map { it.id }
                 val waitTimes = firebaseRepository.getWaitTimesForVenues(placeIds)
 
-                // Merge wait times into restaurants
+                // merge wait times
                 restaurants.map { restaurant ->
                     restaurant.copy(waitTimeMinutes = waitTimes[restaurant.id])
                 }
 
             } catch (e: Exception) {
-                Log.e(TAG, "Error fetching restaurants: ${e.message}", e)
+                Log.e(TAG, "fetch error: ${e.message}", e)
                 emptyList()
             }
         }
     }
 
-    /**
-     * convert google place types from the api to our internal category labels;
-     * defaults to "Restaurant" if no better match is found (can change this to establishment
-     * or something broad like that if we want)
-     */
+    // maps google types to our categories
     private fun mapPlaceTypesToCategory(types: List<String>): String {
         return when {
             types.any { it.contains("bar") } -> "Bar"
@@ -125,15 +106,10 @@ class NearbySearchRepository {
 
     private fun mapPlaceTypesToFormattedCategory(types: List<String>): List<String> {
         val reformattedTypes = mutableListOf<String>()
-        // the place types are in underscore variable format, so we reformat:
         if (types.any { it.contains("bar") }) reformattedTypes.add("Bar")
         if (types.any { it.contains("cafe") }) reformattedTypes.add("Cafe")
         if (types.any { it.contains("grocery") || it.contains("supermarket") }) reformattedTypes.add("Grocery")
         if (types.any { it.contains("restaurant") }) reformattedTypes.add("Restaurant")
-
         return reformattedTypes
     }
-
-
-
 }

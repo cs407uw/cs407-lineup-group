@@ -2,9 +2,7 @@ package com.cs407.lineup.data
 
 import com.google.firebase.Timestamp
 
-/**
- * Data class representing wait time feedback stored in Firestore
- */
+// feedback data for firestore
 data class WaitTimeFeedback(
     val venueId: String = "",
     val venueName: String = "",
@@ -20,37 +18,26 @@ data class WaitTimeFeedback(
     val dayOfWeek: Int = 0
 )
 
-/**
- * Data class representing learned metrics for a venue
- */
+// learned metrics for a venue
 data class VenueMetrics(
     val avgTimePerPerson: Double = 0.0,
     val totalFeedbackCount: Int = 0,
     val lastUpdated: Timestamp = Timestamp.now(),
     val confidenceScore: Double = 0.0,
-    // Learning algorithm fields for AI bias correction
-    val aiBiasMinutes: Double = 0.0,  // Running average of AI overestimate/underestimate
-    val biasDataPoints: Int = 0       // Number of data points used to calculate bias
+    val aiBiasMinutes: Double = 0.0,
+    val biasDataPoints: Int = 0
 )
 
-/**
- * Data class representing a current wait time report for a venue
- * Used for real-time wait time display in the restaurant list
- */
+// current wait time report
 data class WaitTimeData(
     val waitMinutes: Int = 0,
     val reportedAt: Timestamp = Timestamp.now(),
     val expiresAt: Timestamp = Timestamp.now(),
-    val source: String = "unknown",  // "ai" or "manual"
+    val source: String = "unknown",
     val reportedBy: String = "",
-    val rawAiEstimate: Int? = null   // Original AI estimate before bias correction (for learning)
+    val rawAiEstimate: Int? = null
 ) {
-    /**
-     * Check if this wait time data is still valid (not expired)
-     */
-    fun isValid(): Boolean {
-        return Timestamp.now().seconds < expiresAt.seconds
-    }
+    fun isValid(): Boolean = Timestamp.now().seconds < expiresAt.seconds
 
     companion object {
         const val SOURCE_AI = "ai"

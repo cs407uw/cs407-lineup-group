@@ -56,30 +56,26 @@ import coil.compose.AsyncImage
 import com.cs407.lineup.data.LocationViewModel
 import com.cs407.lineup.data.WaitTimeRepository
 import com.cs407.lineup.data.FirebaseRepository
+import com.cs407.lineup.data.WaitTimeData
+import com.cs407.lineup.data.HomeViewModel
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import java.io.File
+import android.app.Activity
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun RestaurantDetailScreen(
     restaurant: Restaurant, onBack: () -> Unit, locationViewModel: LocationViewModel = viewModel()
 ) {
     val context = LocalContext.current
-
-    // location state for navigation
     val userLocation by locationViewModel.location.collectAsState()
 
-    // request location updates right upon screen load
-    LaunchedEffect(true) {
-        locationViewModel.startLocationUpdates()
-    }
+    LaunchedEffect(true) { locationViewModel.startLocationUpdates() }
 
-    // fallback image & descrip. in case the api doesn't properly return one for a restaurant
-    val safeImage = restaurant.imageUrl.ifBlank {
-        "https://via.placeholder.com/400x300?text=No+Image"
-    }
+    val safeImage = restaurant.imageUrl.ifBlank { "https://via.placeholder.com/400x300?text=No+Image" }
     val safeDescription = restaurant.description.ifBlank { "No description available." }
 
     Box(
@@ -96,7 +92,6 @@ fun RestaurantDetailScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // card to hold restaurant content
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
@@ -108,7 +103,6 @@ fun RestaurantDetailScreen(
                     modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // restaurant name
                     Text(
                         text = restaurant.name,
                         fontFamily = monaspace,
@@ -121,7 +115,6 @@ fun RestaurantDetailScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // wait time
                     Box(
                         modifier = Modifier
                             .background(Color(0xFFEEEDE9), RoundedCornerShape(10.dp))
@@ -282,30 +275,25 @@ fun RestaurantMetaInfo(restaurant: Restaurant) {
     }
 }
 
-/**
- * Composable button to capture an image of the line and upload to Gemini API
- * for wait time estimation, with manual entry option
- */
+// capture line image or manual entry for wait time
 @Composable
 fun CaptureLineButton(restaurant: Restaurant) {
     val context = LocalContext.current
+    val activity = context as Activity
     val waitTimeRepository = remember { WaitTimeRepository() }
+    val firebaseRepository = remember { FirebaseRepository() }
+    val homeViewModel: HomeViewModel = viewModel(viewModelStoreOwner = activity as androidx.lifecycle.ViewModelStoreOwner) // shared with homescreen
     val coroutineScope = rememberCoroutineScope()
 
-    // State for loading and result
     var isUploading by remember { mutableStateOf(false) }
     var resultMessage by remember { mutableStateOf<String?>(null) }
-
-    // State for manual entry dialog
     var showManualEntryDialog by remember { mutableStateOf(false) }
     var manualWaitTime by remember { mutableStateOf("") }
 
-    // File to store the captured image
     val imageFile = remember {
         File(context.cacheDir, "captured_line_${System.currentTimeMillis()}.jpg")
     }
 
-    // URI for the image file
     val imageUri = remember(imageFile) {
         androidx.core.content.FileProvider.getUriForFile(
             context,
@@ -314,7 +302,6 @@ fun CaptureLineButton(restaurant: Restaurant) {
         )
     }
 
-    // Shared function to process image upload
     fun processImageUpload() {
         isUploading = true
         resultMessage = null
@@ -326,39 +313,44 @@ fun CaptureLineButton(restaurant: Restaurant) {
             isUploading = false
 
             if (result.isSuccess) {
+                val waitMinutes = result.waitTimeMinutes!!
                 val calculator = com.cs407.lineup.data.WaitTimeCalculator()
                 resultMessage = "Wait Time: ${calculator.formatWaitTime(
-                    result.waitTimeMinutes!!,
+                    waitMinutes,
                     result.confidence!!
                 )}"
+
+                val saved = firebaseRepository.saveWaitTime(
+                    venueId = restaurant.id,
+                    venueName = restaurant.name,
+                    waitMinutes = waitMinutes,
+                    source = WaitTimeData.SOURCE_AI,
+                    rawAiEstimate = waitMinutes
+                )
+                if (saved) {
+                    homeViewModel.refreshWaitTimes()
+                    Toast.makeText(context, "Wait time saved to database", Toast.LENGTH_SHORT).show()
+                }
             } else {
                 resultMessage = result.errorMessage ?: "Unknown error"
             }
         }
     }
 
-    // Camera launcher
     val cameraLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.TakePicture()
     ) { success ->
-        if (success) {
-            processImageUpload()
-        } else {
-            Toast.makeText(context, "Image capture cancelled", Toast.LENGTH_SHORT).show()
-        }
+        if (success) processImageUpload()
+        else Toast.makeText(context, "Image capture cancelled", Toast.LENGTH_SHORT).show()
     }
 
-    // Image picker launcher (for gallery)
     val imagePickerLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
             try {
-                // Copy the selected image to our cache file
                 context.contentResolver.openInputStream(uri)?.use { input ->
-                    imageFile.outputStream().use { output ->
-                        input.copyTo(output)
-                    }
+                    imageFile.outputStream().use { output -> input.copyTo(output) }
                 }
                 processImageUpload()
             } catch (e: Exception) {
@@ -367,18 +359,13 @@ fun CaptureLineButton(restaurant: Restaurant) {
         }
     }
 
-    // Permission launcher
     val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (isGranted) {
-            cameraLauncher.launch(imageUri)
-        } else {
-            Toast.makeText(context, "Camera permission required", Toast.LENGTH_SHORT).show()
-        }
+        if (isGranted) cameraLauncher.launch(imageUri)
+        else Toast.makeText(context, "Camera permission required", Toast.LENGTH_SHORT).show()
     }
 
-    // Manual Entry Dialog
     if (showManualEntryDialog) {
         AlertDialog(
             onDismissRequest = { showManualEntryDialog = false },
@@ -416,7 +403,22 @@ fun CaptureLineButton(restaurant: Restaurant) {
                     onClick = {
                         val minutes = manualWaitTime.toIntOrNull()
                         if (minutes != null && minutes >= 0) {
-                            resultMessage = "Wait Time: $minutes min (Manual Entry)"
+                            coroutineScope.launch {
+                                val saved = firebaseRepository.saveWaitTime(
+                                    venueId = restaurant.id,
+                                    venueName = restaurant.name,
+                                    waitMinutes = minutes,
+                                    source = WaitTimeData.SOURCE_MANUAL
+                                )
+                                if (saved) {
+                                    homeViewModel.refreshWaitTimes()
+                                    resultMessage = "Wait Time: $minutes min (Manual Entry) ✓ Saved"
+                                    Toast.makeText(context, "Wait time saved to database!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    resultMessage = "Wait Time: $minutes min (Manual Entry) - Save failed"
+                                    Toast.makeText(context, "Failed to save wait time", Toast.LENGTH_SHORT).show()
+                                }
+                            }
                             showManualEntryDialog = false
                             manualWaitTime = ""
                         } else {
@@ -443,13 +445,11 @@ fun CaptureLineButton(restaurant: Restaurant) {
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth()
     ) {
-        // Row with Camera button (75%) and Gallery icon (25%)
         Row(
             modifier = Modifier.fillMaxWidth(0.8f),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Camera button - takes most of the space
             Button(
                 onClick = {
                     when {

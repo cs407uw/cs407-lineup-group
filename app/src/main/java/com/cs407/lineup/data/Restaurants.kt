@@ -3,14 +3,11 @@ package com.cs407.lineup.data
 import androidx.compose.ui.graphics.Color
 import com.google.android.gms.maps.model.LatLng
 
-/**
- * restaurant data class to represent restaurants fetched from the google places api
- */
 data class Restaurant(
     val id: String,
     val name: String,
     val description: String,
-    val waitTimeMinutes: Int?,  // Nullable - null means no wait time data available
+    val waitTimeMinutes: Int?,
     val type: String,
     val types: List<String>,
     val latLng: LatLng,
@@ -21,17 +18,11 @@ data class Restaurant(
     val priceLevel: Int? = null,
     val isOpenNow: Boolean? = null
 ) {
-    /**
-     * Display-friendly wait time string
-     */
     val waitTimeDisplay: String
-        get() = waitTimeMinutes?.let { "$it min" } ?: "No data"
+        get() = waitTimeMinutes?.let { "$it min" } ?: "—"
 }
 
-/**
- * a set of colors associated with a restaurant card. these are rotating which allows
- * for each restaurant to get a different color in a
- */
+// rotating colors for restaurant cards
 val restaurantColors = listOf(
     Color(0xFFFFCDC9),
     Color(0xFFFFECBF),

@@ -13,10 +13,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Initialize Firebase Remote Config to fetch API keys
-        lifecycleScope.launch {
-            ApiKeyProvider.initialize()
-        }
+        lifecycleScope.launch { ApiKeyProvider.initialize() }
 
         enableEdgeToEdge()
         setContent {
