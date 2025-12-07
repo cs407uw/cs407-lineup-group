@@ -1,7 +1,6 @@
 package com.cs407.lineup.screens
 
 import android.Manifest
-import android.app.Activity
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,12 +24,10 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.MailOutline
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Search
@@ -53,7 +50,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -73,7 +69,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -149,7 +144,6 @@ fun HomeScreen(
     // activity-scoped so its shared with detail screen
     val homeViewModel: HomeViewModel = viewModel(viewModelStoreOwner = activity as androidx.lifecycle.ViewModelStoreOwner)
     val nearbyRestaurants by homeViewModel.nearbyRestaurants.collectAsState()
-    val isLoadingRestaurants by homeViewModel.isLoading.collectAsState()
     val needsRefresh by homeViewModel.needsRefresh.collectAsState()
 
     var sortedRestaurants by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
@@ -665,8 +659,6 @@ fun RestaurantListSheet(
     var selectedCategories by homeViewModel.selectedCategories
     var showOnlyFavorites by homeViewModel.showOnlyFavorites
 
-
-
     // all category options to display and choose from in modal
     val categories = listOf(allLabel, "Restaurant", "Bar", "Cafe", "Grocery")
     // filtering logic: apply the selected categories
@@ -876,12 +868,10 @@ fun RestaurantListSheet(
                                 .padding(vertical = 4.dp)
                                 .clickable {
                                     selectedCategories =
-                                        if (cat == allLabel) { // reset all filters
-                                            emptySet()
-                                        } else if (isSelected) { // unselect the specific category
-                                            selectedCategories - cat
-                                        } else {
-                                            (selectedCategories + cat) - allLabel
+                                        when {
+                                            cat == allLabel -> emptySet()
+                                            isSelected -> selectedCategories - cat
+                                            else -> (selectedCategories + cat) - allLabel
                                         }
                                 },
                             verticalAlignment = Alignment.CenterVertically
