@@ -99,7 +99,7 @@ class FirebaseRepository {
                 avgTimePerPerson = avgTimePerPerson,
                 totalFeedbackCount = feedbackList.size,
                 lastUpdated = Timestamp.now(),
-                confidenceScore = confidenceScore
+                //confidenceScore = confidenceScore
             )
 
             db.collection("venues")

@@ -1,6 +1,7 @@
 package com.cs407.lineup.screens
 
 import android.Manifest
+import android.app.Activity
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -162,7 +163,7 @@ fun HomeScreen(
         locationHelper.getEffectiveLocation(gpsLocation)
     }
 
-    var sortOption by remember { mutableStateOf("Distance") }
+    var sortOption by homeViewModel.sortOption
 
     fun distanceMeters(a: LatLng, b: LatLng): Double {
         val arr = FloatArray(1)
@@ -600,7 +601,8 @@ fun HomeScreen(
                             showSheet = false
                         }
                     },
-                    favoriteCategories = favoriteCategories
+                    favoriteCategories = favoriteCategories,
+                    homeViewModel = homeViewModel
                 )
 
             }
@@ -642,19 +644,16 @@ fun RestaurantListSheet(
     onItemClick: (Restaurant) -> Unit,
     onCategoryChangeFirst: (Restaurant?) -> Unit,
     onClose: () -> Unit,
-    favoriteCategories: Set<String> = emptySet()
-) {
+    favoriteCategories: Set<String> = emptySet(),
+    homeViewModel: HomeViewModel
+)
+ {
     // get context for accessing SharedPreferences
     val context = LocalContext.current
 
     // state for opening filter modal w/ categories & sorting
     var showFilterSheet by remember { mutableStateOf(false) }
 
-    // search query state
-    var searchQuery by remember { mutableStateOf("") }
-
-    // favorites toggle state
-    var showOnlyFavorites by remember { mutableStateOf(false) }
 
     // state to track favorited restaurant IDs (triggers recomposition when changed)
     var favoriteIds by remember { mutableStateOf(FavoritePrefs.getFavorites(context)) }
@@ -662,13 +661,10 @@ fun RestaurantListSheet(
     // label for dropdown & all the categories
     val allLabel = "All Establishments"
 
-    // if user has favorites, use them initially, otherwise show all
-    var selectedCategories by remember {
-        mutableStateOf(
-            if (favoriteCategories.isEmpty()) setOf(allLabel)
-            else favoriteCategories
-        )
-    }
+    var searchQuery by homeViewModel.searchQuery
+    var selectedCategories by homeViewModel.selectedCategories
+    var showOnlyFavorites by homeViewModel.showOnlyFavorites
+
 
 
     // all category options to display and choose from in modal
