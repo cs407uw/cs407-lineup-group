@@ -60,15 +60,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -133,10 +138,6 @@ fun HomeScreen(
     var selected by remember { mutableStateOf<Restaurant?>(null) }
 
     // variables for map camera, initial position, and user GPS
-    val initial = selected?.latLng ?: LatLng(43.0731, -89.4012) // default Madison
-    val cameraPositionState: CameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(initial, 13f)
-    }
     val activity = context as android.app.Activity
     val locationViewModel: LocationViewModel = viewModel()
     val gpsLocation by locationViewModel.location.collectAsState()
@@ -148,16 +149,78 @@ fun HomeScreen(
 
     var sortedRestaurants by remember { mutableStateOf<List<Restaurant>>(emptyList()) }
 
-    val locationHelper = remember { LocationHelper(context) }
+    // activity-scoped so location persists across navigation
+    val locationHelper: LocationHelper = viewModel(viewModelStoreOwner = activity as androidx.lifecycle.ViewModelStoreOwner)
     val isManualMode by locationHelper.isManualMode.collectAsState()
     val manualLocation by locationHelper.manualLocation.collectAsState()
+    val isLocationSearching by locationHelper.isGeocoding.collectAsState()
+    val locationSearchError by locationHelper.geocodingError.collectAsState()
+    val predictions by locationHelper.predictions.collectAsState()
+    var locationSearchQuery by remember { mutableStateOf("") }
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     // manual location overrides gps
     val userLocation = remember(gpsLocation, manualLocation, isManualMode) {
         locationHelper.getEffectiveLocation(gpsLocation)
     }
 
+    // Camera position state - use current location or default to Madison
+    val initial = userLocation ?: selected?.latLng ?: LatLng(43.0731, -89.4012)
+    val cameraPositionState: CameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(initial, 13f)
+    }
+
     var sortOption by homeViewModel.sortOption
+
+    // Filtering states from ViewModel
+    var searchQuery by homeViewModel.searchQuery
+    var selectedCategories by homeViewModel.selectedCategories
+    var showOnlyFavorites by homeViewModel.showOnlyFavorites
+
+    // Favorite IDs from SharedPreferences
+    var favoriteIds by remember { mutableStateOf(FavoritePrefs.getFavorites(context)) }
+
+    // Label for "All Establishments"
+    val allLabel = "All Establishments"
+
+    // Category filtering
+    val filtered by remember(selectedCategories, nearbyRestaurants) {
+        derivedStateOf {
+            if (selectedCategories.contains(allLabel)) {
+                nearbyRestaurants
+            } else {
+                nearbyRestaurants.filter { r ->
+                    r.type in selectedCategories
+                }
+            }
+        }
+    }
+
+    // Search filtering on top of category filtering
+    val searchFiltered by remember(searchQuery, filtered) {
+        derivedStateOf {
+            if (searchQuery.isBlank()) {
+                filtered
+            } else {
+                filtered.filter { r ->
+                    r.name.contains(searchQuery, ignoreCase = true)
+                }
+            }
+        }
+    }
+
+    // Favorites filtering on top of search and category filtering
+    val favoritesFiltered by remember(showOnlyFavorites, searchFiltered, favoriteIds) {
+        derivedStateOf {
+            if (showOnlyFavorites) {
+                searchFiltered.filter { r ->
+                    favoriteIds.contains(r.id)
+                }
+            } else {
+                searchFiltered
+            }
+        }
+    }
 
     fun distanceMeters(a: LatLng, b: LatLng): Double {
         val arr = FloatArray(1)
@@ -265,12 +328,47 @@ fun HomeScreen(
                         icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)
                     )
                 }
-                // draw all nearby restaurants w/ red marker
-                nearbyRestaurants.forEach { restaurant ->
+                // draw filtered restaurants with color-coded markers
+                favoritesFiltered.forEach { restaurant ->
+                    // Color-code by wait time urgency if available, otherwise by category
+                    val markerColor = if (restaurant.waitTimeMinutes != null) {
+                        when {
+                            restaurant.waitTimeMinutes <= 10 -> BitmapDescriptorFactory.HUE_GREEN
+                            restaurant.waitTimeMinutes <= 20 -> BitmapDescriptorFactory.HUE_YELLOW
+                            restaurant.waitTimeMinutes <= 30 -> BitmapDescriptorFactory.HUE_ORANGE
+                            else -> BitmapDescriptorFactory.HUE_RED
+                        }
+                    } else {
+                        // Fallback to category colors
+                        when (restaurant.type) {
+                            "Restaurant" -> BitmapDescriptorFactory.HUE_RED
+                            "Cafe" -> BitmapDescriptorFactory.HUE_ORANGE
+                            "Bar" -> BitmapDescriptorFactory.HUE_VIOLET
+                            "Grocery" -> BitmapDescriptorFactory.HUE_GREEN
+                            else -> BitmapDescriptorFactory.HUE_RED
+                        }
+                    }
+
+                    // Build marker title and snippet with wait time info
+                    val markerTitle = buildString {
+                        append(restaurant.name)
+                        restaurant.waitTimeMinutes?.let {
+                            append(" (${it} min wait)")
+                        }
+                    }
+
+                    val markerSnippet = buildString {
+                        append(restaurant.types.joinToString(" · "))
+                        if (!restaurant.waitTimeAgo.isBlank()) {
+                            append(" • Updated ${restaurant.waitTimeAgo}")
+                        }
+                    }
+
                     Marker(
                         state = MarkerState(position = restaurant.latLng),
-                        title = restaurant.name,
-                        icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
+                        title = markerTitle,
+                        snippet = markerSnippet,
+                        icon = BitmapDescriptorFactory.defaultMarker(markerColor)
                     )
                 }
                 // highlight marker for the currently selected restaurant
@@ -288,6 +386,137 @@ fun HomeScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text("Requesting location permission...")
+            }
+        }
+
+        // Location search bar overlay
+        Box(
+            modifier = Modifier
+                .padding(top = 50.dp, start = 16.dp, end = 80.dp)
+                .align(Alignment.TopStart)
+        ) {
+            OutlinedTextField(
+                value = locationSearchQuery,
+                onValueChange = {
+                    locationSearchQuery = it
+                    locationHelper.searchPlacePredictions(it)
+                },
+                placeholder = { Text("Search cities, places, addresses...", fontFamily = ubuntu) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .shadow(4.dp, RoundedCornerShape(28.dp)),
+                shape = RoundedCornerShape(28.dp),
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search location",
+                        tint = Color(0xFF1B5E20)
+                    )
+                },
+                trailingIcon = {
+                    if (isLocationSearching) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = Color(0xFF1B5E20),
+                            strokeWidth = 2.dp
+                        )
+                    } else if (locationSearchQuery.isNotEmpty()) {
+                        IconButton(onClick = {
+                            locationSearchQuery = ""
+                            locationHelper.clearGeocodingError()
+                            locationHelper.clearPredictions()
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Clear",
+                                tint = Color.Gray
+                            )
+                        }
+                    }
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Color(0xFF1B5E20),
+                    unfocusedBorderColor = Color.White,
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
+                    cursorColor = Color(0xFF1B5E20)
+                ),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        if (locationSearchQuery.isNotBlank()) {
+                            locationHelper.setManualLocation(locationSearchQuery)
+                            locationHelper.clearPredictions()
+                            keyboardController?.hide()
+                        }
+                    }
+                )
+            )
+
+            // Autocomplete dropdown
+            if (predictions.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 60.dp)
+                        .shadow(8.dp, RoundedCornerShape(12.dp))
+                        .background(Color.White, RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(12.dp))
+                ) {
+                    predictions.take(5).forEach { prediction ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    locationSearchQuery = prediction.fullText
+                                    locationHelper.selectPrediction(prediction)
+                                    keyboardController?.hide()
+                                    showSheet = true
+                                }
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                        ) {
+                            Text(
+                                text = prediction.primaryText,
+                                fontFamily = ubuntu,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.Black
+                            )
+                            if (prediction.secondaryText.isNotBlank()) {
+                                Text(
+                                    text = prediction.secondaryText,
+                                    fontFamily = ubuntu,
+                                    fontSize = 14.sp,
+                                    color = Color.Gray,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
+                        }
+                        if (prediction != predictions.last()) {
+                            HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
+                        }
+                    }
+                }
+            }
+        }
+
+        // Error message
+        if (locationSearchError != null) {
+            Box(
+                modifier = Modifier
+                    .padding(top = 115.dp, start = 16.dp, end = 80.dp)
+                    .align(Alignment.TopStart)
+            ) {
+                Text(
+                    text = locationSearchError ?: "",
+                    color = Color.Red,
+                    fontSize = 12.sp,
+                    fontFamily = ubuntu,
+                    modifier = Modifier
+                        .background(Color.White.copy(alpha = 0.9f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                )
             }
         }
 
@@ -310,6 +539,38 @@ fun HomeScreen(
                     tint = Color.Black,
                     modifier = Modifier.size(28.dp)
                 )
+            }
+        }
+
+        // "My Location" button (visible only in manual mode)
+        if (isManualMode) {
+            Box(
+                modifier = Modifier
+                    .padding(
+                        bottom = if (showSheet) 240.dp else 60.dp,
+                        end = 20.dp
+                    )
+                    .align(Alignment.BottomEnd)
+            ) {
+                IconButton(
+                    onClick = {
+                        locationHelper.useCurrentLocation()
+                        locationSearchQuery = ""
+                        locationHelper.clearGeocodingError()
+                    },
+                    modifier = Modifier
+                        .size(56.dp)
+                        .shadow(6.dp, CircleShape)
+                        .background(Color.White, CircleShape)
+                        .border(2.dp, Color(0xFF1B5E20), CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Place,
+                        contentDescription = "Return to my location",
+                        tint = Color(0xFF1B5E20),
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
         }
 
@@ -373,7 +634,7 @@ fun HomeScreen(
                             IconButton(
                                 onClick = {
                                     if (home.isNotBlank()) {
-                                        locationHelper.setManualLocation(home, scope)
+                                        locationHelper.setManualLocation(home)
                                         showProfileCard = false
                                     }
                                 },
@@ -420,7 +681,7 @@ fun HomeScreen(
                             IconButton(
                                 onClick = {
                                     if (work.isNotBlank()) {
-                                        locationHelper.setManualLocation(work, scope)
+                                        locationHelper.setManualLocation(work)
                                         showProfileCard = false
                                     }
                                 },
@@ -596,7 +857,9 @@ fun HomeScreen(
                         }
                     },
                     favoriteCategories = favoriteCategories,
-                    homeViewModel = homeViewModel
+                    homeViewModel = homeViewModel,
+                    sharedFavoriteIds = favoriteIds,
+                    onFavoriteIdsChange = { newIds -> favoriteIds = newIds }
                 )
 
             }
@@ -639,7 +902,9 @@ fun RestaurantListSheet(
     onCategoryChangeFirst: (Restaurant?) -> Unit,
     onClose: () -> Unit,
     favoriteCategories: Set<String> = emptySet(),
-    homeViewModel: HomeViewModel
+    homeViewModel: HomeViewModel,
+    sharedFavoriteIds: Set<String>,
+    onFavoriteIdsChange: (Set<String>) -> Unit
 )
  {
     // get context for accessing SharedPreferences
@@ -649,8 +914,8 @@ fun RestaurantListSheet(
     var showFilterSheet by remember { mutableStateOf(false) }
 
 
-    // state to track favorited restaurant IDs (triggers recomposition when changed)
-    var favoriteIds by remember { mutableStateOf(FavoritePrefs.getFavorites(context)) }
+    // Use shared favoriteIds from parent
+    var favoriteIds = sharedFavoriteIds
 
     // label for dropdown & all the categories
     val allLabel = "All Establishments"
@@ -710,7 +975,7 @@ fun RestaurantListSheet(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            placeholder = { Text("Search...", fontFamily = ubuntu) },
+            placeholder = { Text("Search restaurants by name...", fontFamily = ubuntu) },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
@@ -865,15 +1130,7 @@ fun RestaurantListSheet(
                         Row(
                             Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clickable {
-                                    selectedCategories =
-                                        when {
-                                            cat == allLabel -> emptySet()
-                                            isSelected -> selectedCategories - cat
-                                            else -> (selectedCategories + cat) - allLabel
-                                        }
-                                },
+                                .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
 
@@ -886,7 +1143,15 @@ fun RestaurantListSheet(
                                             else (selectedCategories + cat) - allLabel
 
                                         } else {
-                                            selectedCategories - cat
+                                            if (cat == allLabel) {
+                                                // If unchecking "All", select all specific categories
+                                                setOf("Restaurant", "Bar", "Cafe", "Grocery")
+                                            } else {
+                                                val newSelection = selectedCategories - cat
+                                                // If no categories left, default back to "All"
+                                                if (newSelection.isEmpty()) setOf(allLabel)
+                                                else newSelection
+                                            }
                                         }
                                 },
                                 colors = CheckboxDefaults.colors(
@@ -904,26 +1169,19 @@ fun RestaurantListSheet(
                         }
                     }
 
-                    Spacer(Modifier.height(24.dp))
-
-                    // apply button to apply filters (sorting happens in HomeScreen)
-                    Button(
-                        onClick = {
-                            onCategoryChangeFirst(favoritesFiltered.firstOrNull())
-                            showFilterSheet = false
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF1B5E20)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Apply", color = Color.White, fontFamily = monaspace)
-                    }
-
                     Spacer(Modifier.height(20.dp))
+
+                    // Info text: Filters apply automatically
+                    Text(
+                        text = "✓ Filters update in real-time",
+                        fontFamily = ubuntu,
+                        fontSize = 14.sp,
+                        color = Color(0xFF1B5E20),
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+
+                    Spacer(Modifier.height(12.dp))
                 }
             }
         }
@@ -951,10 +1209,10 @@ fun RestaurantListSheet(
                     onFavoriteToggle = {
                         if (favoriteIds.contains(restaurant.id)) {
                             FavoritePrefs.removeFavorite(context, restaurant.id)
-                            favoriteIds = favoriteIds - restaurant.id
+                            onFavoriteIdsChange(favoriteIds - restaurant.id)
                         } else {
                             FavoritePrefs.addFavorite(context, restaurant.id)
-                            favoriteIds = favoriteIds + restaurant.id
+                            onFavoriteIdsChange(favoriteIds + restaurant.id)
                         }
                     },
                     isFavorite = favoriteIds.contains(restaurant.id)
@@ -1032,31 +1290,62 @@ fun RestaurantListItem(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        // right side shows the wait time box
-        Box(
-            modifier = Modifier
-                .width(64.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .border(1.dp, Color.Black, RoundedCornerShape(8.dp))
-                .background(Color.White),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(8.dp)
+        Column(horizontalAlignment = Alignment.End) {
+            // right side shows the wait time box
+            Box(
+                modifier = Modifier
+                    .width(64.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(1.dp, Color.Black, RoundedCornerShape(8.dp))
+                    .background(Color.White),
+                contentAlignment = Alignment.Center
             ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(8.dp)
+                ) {
+                    Text(
+                        text = restaurant.waitTimeMinutes?.toString() ?: "—",
+                        fontSize = 25.sp,
+                        fontFamily = monaspace,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1B5E20)
+                    )
+                    if (restaurant.waitTimeMinutes != null) {
+                        if (restaurant.waitTimeReportCount > 1) {
+                            Text(
+                                text = "AVG",
+                                fontSize = 13.sp,
+                                fontFamily = ubuntu,
+                                color = Color.Black,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "${restaurant.waitTimeReportCount} reports",
+                                fontSize = 9.sp,
+                                fontFamily = ubuntu,
+                                color = Color.Gray
+                            )
+                        } else {
+                            Text(
+                                text = "MIN",
+                                fontSize = 15.sp,
+                                fontFamily = ubuntu,
+                                color = Color.Black
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Time ago display
+            if (restaurant.waitTimeReportedAt != null) {
                 Text(
-                    text = restaurant.waitTimeMinutes?.toString() ?: "—",
-                    fontSize = 25.sp,
-                    fontFamily = monaspace,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1B5E20)
-                )
-                Text(
-                    text = if (restaurant.waitTimeMinutes != null) "MIN" else "",
-                    fontSize = 15.sp,
+                    text = restaurant.waitTimeAgo,
+                    fontSize = 11.sp,
+                    color = Color.Gray,
                     fontFamily = ubuntu,
-                    color = Color.Black
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
         }

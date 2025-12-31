@@ -3,6 +3,8 @@ package com.cs407.lineup.data
 import android.util.Log
 import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.URL
@@ -24,22 +26,29 @@ class NearbySearchRepository {
                     return@withContext emptyList()
                 }
 
-                val url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json" +
-                        "?location=$lat,$lng" +
-                        "&radius=1500&type=restaurant&key=$apiKey"
+                // Fetch multiple types of establishments in parallel
+                val types = listOf("restaurant", "cafe", "bar", "supermarket")
 
-                val result = URL(url).readText()
-                val json = JSONObject(result)
+                // Launch all API calls in parallel using async
+                val deferredResults = types.map { type ->
+                    async(Dispatchers.IO) {
+                        try {
+                            val url = "https://maps.googleapis.com/maps/api/place/nearbysearch/json" +
+                                    "?location=$lat,$lng" +
+                                    "&radius=3000&type=$type&key=$apiKey"
 
-                val status = json.optString("status", "UNKNOWN")
-                if (status != "OK" && status != "ZERO_RESULTS") {
-                    Log.e(TAG, "places api error: $status")
-                    return@withContext emptyList()
-                }
+                            val result = URL(url).readText()
+                            val json = JSONObject(result)
 
-                val restaurantsJson = json.getJSONArray("results")
+                            val status = json.optString("status", "UNKNOWN")
+                            if (status != "OK" && status != "ZERO_RESULTS") {
+                                Log.e(TAG, "places api error for $type: $status")
+                                return@async emptyList()
+                            }
 
-                val restaurants = (0 until restaurantsJson.length()).map { i ->
+                            val restaurantsJson = json.getJSONArray("results")
+
+                            (0 until restaurantsJson.length()).map { i ->
                     val item = restaurantsJson.getJSONObject(i)
                     val placeId = item.getString("place_id")
                     val name = item.getString("name")
@@ -58,33 +67,50 @@ class NearbySearchRepository {
                         }
                     val prettyTypes = mapPlaceTypesToFormattedCategory(googleTypes)
 
-                    Restaurant(
-                        id = placeId,
-                        name = name,
-                        description = item.optString("vicinity", "No description"),
-                        waitTimeMinutes = null,
-                        type = mapPlaceTypesToCategory(googleTypes),
-                        types = prettyTypes,
-                        latLng = LatLng(lat2, lng2),
-                        color = restaurantColors[i % restaurantColors.size],
-                        imageUrl = item.optJSONArray("photos")?.let {
-                            val photoRef = it.getJSONObject(0).getString("photo_reference")
-                            "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=$photoRef&key=$apiKey"
-                        } ?: "",
-                        rating = item.optDouble("rating", Double.NaN).takeIf { !it.isNaN() },
-                        ratingCount = item.optInt("user_ratings_total").takeIf { it != 0 },
-                        priceLevel = item.optInt("price_level").takeIf { it != 0 },
-                        isOpenNow = item.optJSONObject("opening_hours")?.optBoolean("open_now")
-                    )
+                                Restaurant(
+                                    id = placeId,
+                                    name = name,
+                                    description = item.optString("vicinity", "No description"),
+                                    waitTimeMinutes = null,
+                                    type = mapPlaceTypesToCategory(googleTypes),
+                                    types = prettyTypes,
+                                    latLng = LatLng(lat2, lng2),
+                                    color = restaurantColors[i % restaurantColors.size],
+                                    imageUrl = item.optJSONArray("photos")?.let {
+                                        val photoRef = it.getJSONObject(0).getString("photo_reference")
+                                        "https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=$photoRef&key=$apiKey"
+                                    } ?: "",
+                                    rating = item.optDouble("rating", Double.NaN).takeIf { !it.isNaN() },
+                                    ratingCount = item.optInt("user_ratings_total").takeIf { it != 0 },
+                                    priceLevel = item.optInt("price_level").takeIf { it != 0 },
+                                    isOpenNow = item.optJSONObject("opening_hours")?.optBoolean("open_now")
+                                )
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "fetch error for $type: ${e.message}", e)
+                            emptyList()
+                        }
+                    }
                 }
 
-                // get wait times from firebase
-                val placeIds = restaurants.map { it.id }
-                val waitTimes = firebaseRepository.getWaitTimesForVenues(placeIds)
+                // Wait for all parallel API calls to complete
+                val allResults = deferredResults.awaitAll().flatten()
 
-                // merge wait times
-                restaurants.map { restaurant ->
-                    restaurant.copy(waitTimeMinutes = waitTimes[restaurant.id])
+                // Remove duplicates by place ID
+                val uniqueRestaurants = allResults.distinctBy { it.id }
+
+                // get wait times from firebase with timestamps
+                val placeIds = uniqueRestaurants.map { it.id }
+                val waitTimeData = firebaseRepository.getWaitTimeDataForVenues(placeIds)
+
+                // merge wait times, timestamps, and report counts
+                uniqueRestaurants.map { restaurant ->
+                    val data = waitTimeData[restaurant.id]
+                    restaurant.copy(
+                        waitTimeMinutes = data?.waitMinutes,
+                        waitTimeReportedAt = data?.reportedAt,
+                        waitTimeReportCount = data?.reportCount ?: 1
+                    )
                 }
 
             } catch (e: Exception) {
