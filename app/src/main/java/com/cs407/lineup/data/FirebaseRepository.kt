@@ -114,7 +114,7 @@ class FirebaseRepository {
         }
     }
 
-    // save wait time from ai or manual entry
+    // save wait time from ai or manual entry with crowdsourcing support
     suspend fun saveWaitTime(
         venueId: String,
         venueName: String,
@@ -127,9 +127,6 @@ class FirebaseRepository {
             android.util.Log.d(TAG, "Venue: $venueName (ID: $venueId)")
             android.util.Log.d(TAG, "Wait time: $waitMinutes minutes")
             android.util.Log.d(TAG, "Source: $source")
-            if (rawAiEstimate != null) {
-                android.util.Log.d(TAG, "Raw AI estimate: $rawAiEstimate minutes")
-            }
 
             val now = Timestamp.now()
             val expiresAt = Timestamp(
@@ -137,17 +134,68 @@ class FirebaseRepository {
                 now.nanoseconds
             )
 
-            val waitTimeData = WaitTimeData(
-                waitMinutes = waitMinutes,
-                reportedAt = now,
-                expiresAt = expiresAt,
-                source = source,
-                reportedBy = "",
-                rawAiEstimate = rawAiEstimate
+            // Fetch existing wait time data to check for crowdsourcing
+            val existingDoc = db.collection("venues")
+                .document(venueId)
+                .collection("current_wait")
+                .document("latest")
+                .get()
+                .await()
+
+            val existingData = existingDoc.toObject(WaitTimeData::class.java)
+
+            // Prepare new submission
+            val newSubmission = mapOf(
+                "waitMinutes" to waitMinutes,
+                "reportedAt" to now,
+                "source" to source
             )
 
-            val docPath = "venues/$venueId/current_wait/latest"
-            android.util.Log.d(TAG, "Writing to Firestore path: $docPath")
+            val waitTimeData = if (existingData != null && existingData.isValid()) {
+                // Valid existing data - add to crowdsourced average
+                android.util.Log.d(TAG, "Found existing wait time, adding to crowdsourced average")
+
+                // Add new submission to existing submissions (keep last MAX_SUBMISSIONS)
+                val updatedSubmissions = (existingData.submissions + newSubmission)
+                    .takeLast(WaitTimeData.MAX_SUBMISSIONS)
+
+                // Calculate average from all submissions
+                val allWaitTimes = updatedSubmissions.mapNotNull {
+                    (it["waitMinutes"] as? Number)?.toInt()
+                }
+                val averageWaitMinutes = if (allWaitTimes.isNotEmpty()) {
+                    allWaitTimes.average().toInt()
+                } else {
+                    waitMinutes
+                }
+
+                android.util.Log.d(TAG, "Calculated average: $averageWaitMinutes min from ${allWaitTimes.size} submissions")
+
+                WaitTimeData(
+                    waitMinutes = averageWaitMinutes,
+                    reportedAt = now,
+                    expiresAt = expiresAt,
+                    source = "crowdsourced",
+                    reportedBy = "",
+                    rawAiEstimate = rawAiEstimate,
+                    submissions = updatedSubmissions,
+                    reportCount = updatedSubmissions.size
+                )
+            } else {
+                // No valid existing data - create new entry
+                android.util.Log.d(TAG, "No existing wait time, creating new entry")
+
+                WaitTimeData(
+                    waitMinutes = waitMinutes,
+                    reportedAt = now,
+                    expiresAt = expiresAt,
+                    source = source,
+                    reportedBy = "",
+                    rawAiEstimate = rawAiEstimate,
+                    submissions = listOf(newSubmission),
+                    reportCount = 1
+                )
+            }
 
             db.collection("venues")
                 .document(venueId)
@@ -160,8 +208,7 @@ class FirebaseRepository {
                 calculateAndUpdateBias(venueId, waitMinutes)
             }
 
-            android.util.Log.d(TAG, "✅ SUCCESS: Wait time saved to database!")
-            android.util.Log.d(TAG, "Expires at: ${expiresAt.toDate()}")
+            android.util.Log.d(TAG, "✅ SUCCESS: Wait time saved (avg: ${waitTimeData.waitMinutes} min, ${waitTimeData.reportCount} reports)")
             android.util.Log.d(TAG, "=== END SAVE WAIT TIME ===")
             true
         } catch (e: Exception) {
@@ -197,6 +244,33 @@ class FirebaseRepository {
         }
     }
 
+    // get wait time data including timestamp
+    suspend fun getWaitTimeData(venueId: String): WaitTimeData? {
+        return try {
+            val doc = db.collection("venues")
+                .document(venueId)
+                .collection("current_wait")
+                .document("latest")
+                .get()
+                .await()
+
+            val waitTimeData = doc.toObject(WaitTimeData::class.java)
+
+            if (waitTimeData != null && waitTimeData.isValid()) {
+                android.util.Log.d(TAG, "found wait time for $venueId: ${waitTimeData.waitMinutes} min")
+                waitTimeData
+            } else if (waitTimeData != null) {
+                android.util.Log.d(TAG, "wait time expired for $venueId")
+                null
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "get wait time data error for $venueId", e)
+            null
+        }
+    }
+
     // batch fetch for list display
     suspend fun getWaitTimesForVenues(venueIds: List<String>): Map<String, Int?> {
         android.util.Log.d(TAG, "=== FETCHING WAIT TIMES FROM DATABASE ===")
@@ -216,6 +290,26 @@ class FirebaseRepository {
             android.util.Log.d(TAG, "Venues with wait times: ${results.filter { it.value != null }}")
         }
         android.util.Log.d(TAG, "=== END FETCH WAIT TIMES ===")
+
+        return results
+    }
+
+    // batch fetch with timestamps for list display
+    suspend fun getWaitTimeDataForVenues(venueIds: List<String>): Map<String, WaitTimeData?> {
+        android.util.Log.d(TAG, "=== FETCHING WAIT TIME DATA FROM DATABASE ===")
+        android.util.Log.d(TAG, "Fetching wait time data for ${venueIds.size} venues")
+
+        val results = mutableMapOf<String, WaitTimeData?>()
+
+        venueIds.chunked(10).forEach { batch ->
+            batch.forEach { venueId ->
+                results[venueId] = getWaitTimeData(venueId)
+            }
+        }
+
+        val venuesWithData = results.count { it.value != null }
+        android.util.Log.d(TAG, "Found wait time data for $venuesWithData out of ${venueIds.size} venues")
+        android.util.Log.d(TAG, "=== END FETCH WAIT TIME DATA ===")
 
         return results
     }

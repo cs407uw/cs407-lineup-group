@@ -377,57 +377,157 @@ fun CaptureLineButton(restaurant: Restaurant) {
                 Column {
                     Text(
                         "How many minutes is the current wait?",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    Text(
+                        "Select an option:",
                         fontSize = 14.sp,
-                        color = Color.Gray
+                        color = Color.Gray,
+                        modifier = Modifier.padding(bottom = 16.dp)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = manualWaitTime,
-                        onValueChange = {
-                            // Only allow numbers
-                            if (it.all { char -> char.isDigit() }) {
-                                manualWaitTime = it
+
+                    // Quick submit buttons in 2 rows
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // First row: 5, 10, 15
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    manualWaitTime = "5"
+                                    coroutineScope.launch {
+                                        val saved = firebaseRepository.saveWaitTime(
+                                            venueId = restaurant.id,
+                                            venueName = restaurant.name,
+                                            waitMinutes = 5,
+                                            source = WaitTimeData.SOURCE_MANUAL
+                                        )
+                                        if (saved) {
+                                            homeViewModel.refreshWaitTimes()
+                                            resultMessage = "Wait Time: 5 min (Manual Entry) ✓ Saved"
+                                            Toast.makeText(context, "Wait time saved!", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                    showManualEntryDialog = false
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                            ) {
+                                Text("5 min", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                             }
-                        },
-                        label = { Text("Minutes") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val minutes = manualWaitTime.toIntOrNull()
-                        if (minutes != null && minutes >= 0) {
-                            coroutineScope.launch {
-                                val saved = firebaseRepository.saveWaitTime(
-                                    venueId = restaurant.id,
-                                    venueName = restaurant.name,
-                                    waitMinutes = minutes,
-                                    source = WaitTimeData.SOURCE_MANUAL
-                                )
-                                if (saved) {
-                                    homeViewModel.refreshWaitTimes()
-                                    resultMessage = "Wait Time: $minutes min (Manual Entry) ✓ Saved"
-                                    Toast.makeText(context, "Wait time saved to database!", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    resultMessage = "Wait Time: $minutes min (Manual Entry) - Save failed"
-                                    Toast.makeText(context, "Failed to save wait time", Toast.LENGTH_SHORT).show()
-                                }
+
+                            Button(
+                                onClick = {
+                                    manualWaitTime = "10"
+                                    coroutineScope.launch {
+                                        val saved = firebaseRepository.saveWaitTime(
+                                            venueId = restaurant.id,
+                                            venueName = restaurant.name,
+                                            waitMinutes = 10,
+                                            source = WaitTimeData.SOURCE_MANUAL
+                                        )
+                                        if (saved) {
+                                            homeViewModel.refreshWaitTimes()
+                                            resultMessage = "Wait Time: 10 min (Manual Entry) ✓ Saved"
+                                            Toast.makeText(context, "Wait time saved!", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                    showManualEntryDialog = false
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                            ) {
+                                Text("10 min", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                             }
-                            showManualEntryDialog = false
-                            manualWaitTime = ""
-                        } else {
-                            Toast.makeText(context, "Please enter a valid number", Toast.LENGTH_SHORT).show()
+
+                            Button(
+                                onClick = {
+                                    manualWaitTime = "15"
+                                    coroutineScope.launch {
+                                        val saved = firebaseRepository.saveWaitTime(
+                                            venueId = restaurant.id,
+                                            venueName = restaurant.name,
+                                            waitMinutes = 15,
+                                            source = WaitTimeData.SOURCE_MANUAL
+                                        )
+                                        if (saved) {
+                                            homeViewModel.refreshWaitTimes()
+                                            resultMessage = "Wait Time: 15 min (Manual Entry) ✓ Saved"
+                                            Toast.makeText(context, "Wait time saved!", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                    showManualEntryDialog = false
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                            ) {
+                                Text("15 min", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
-                ) {
-                    Text("Submit")
+
+                        // Second row: 20, 30+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = {
+                                    manualWaitTime = "20"
+                                    coroutineScope.launch {
+                                        val saved = firebaseRepository.saveWaitTime(
+                                            venueId = restaurant.id,
+                                            venueName = restaurant.name,
+                                            waitMinutes = 20,
+                                            source = WaitTimeData.SOURCE_MANUAL
+                                        )
+                                        if (saved) {
+                                            homeViewModel.refreshWaitTimes()
+                                            resultMessage = "Wait Time: 20 min (Manual Entry) ✓ Saved"
+                                            Toast.makeText(context, "Wait time saved!", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                    showManualEntryDialog = false
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFA726))
+                            ) {
+                                Text("20 min", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Button(
+                                onClick = {
+                                    manualWaitTime = "30"
+                                    coroutineScope.launch {
+                                        val saved = firebaseRepository.saveWaitTime(
+                                            venueId = restaurant.id,
+                                            venueName = restaurant.name,
+                                            waitMinutes = 30,
+                                            source = WaitTimeData.SOURCE_MANUAL
+                                        )
+                                        if (saved) {
+                                            homeViewModel.refreshWaitTimes()
+                                            resultMessage = "Wait Time: 30+ min (Manual Entry) ✓ Saved"
+                                            Toast.makeText(context, "Wait time saved!", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                    showManualEntryDialog = false
+                                },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF5350))
+                            ) {
+                                Text("30+ min", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
             },
+            confirmButton = {},
             dismissButton = {
                 TextButton(onClick = {
                     showManualEntryDialog = false

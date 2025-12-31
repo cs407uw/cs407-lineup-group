@@ -41,20 +41,31 @@ data class VenueMetrics(
     }
 }
 
-// current wait time report
+// individual wait time submission for crowdsourcing
+data class WaitTimeSubmission(
+    val waitMinutes: Int = 0,
+    val reportedAt: Timestamp = Timestamp.now(),
+    val source: String = "unknown"
+)
+
+// current wait time report with crowdsourced averaging
 data class WaitTimeData(
     val waitMinutes: Int = 0,
     val reportedAt: Timestamp = Timestamp.now(),
     val expiresAt: Timestamp = Timestamp.now(),
     val source: String = "unknown",
     val reportedBy: String = "",
-    val rawAiEstimate: Int? = null
+    val rawAiEstimate: Int? = null,
+    // Crowdsourcing fields
+    val submissions: List<Map<String, Any>> = emptyList(),  // Recent submissions for averaging
+    val reportCount: Int = 1  // Number of reports contributing to average
 ) {
     fun isValid(): Boolean = Timestamp.now().seconds < expiresAt.seconds
 
     companion object {
         const val SOURCE_AI = "ai"
         const val SOURCE_MANUAL = "manual"
-        const val EXPIRATION_MINUTES = 30L
+        const val EXPIRATION_MINUTES = 120L  // 2 hours
+        const val MAX_SUBMISSIONS = 10  // Keep last 10 submissions for averaging
     }
 }
